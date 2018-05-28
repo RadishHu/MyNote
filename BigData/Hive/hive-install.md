@@ -12,7 +12,7 @@
 
   - 解压hive安装包
   - bin/hive启动即可使用
-  - 缺点：运行hive会在当前目录生成一个derby文件和metastore_db目录，在同一个目录下同时只能有一个hive客户端使用数据库，每个启动的hive都有一套自己的元数据，无法共享
+  - 缺点：运行hive会在当前目录生成一个derby文件和metastore_db目录，用户不可以执行2个并发的Hive CLI实例
 
   MySQL：
 
