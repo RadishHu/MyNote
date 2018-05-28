@@ -53,7 +53,11 @@
   f2 map<STRING,STRING>,
   f3 map<STRING,STRING>
   ) STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
-  WITH SERDEPROPERTIES ("hbase.columns.mapping" = ":key,f1:,f2:,f3:")
+  WITH SERDEPROPERTIES ("hbase.columns.mapping" = "
+  :key,
+  f1:,
+  f2:,
+  f3:")
   TBLPROPERTIES ("hbase.table.name" = "hbase_test");
   ```
 
