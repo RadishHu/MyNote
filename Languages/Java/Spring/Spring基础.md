@@ -2,6 +2,8 @@
 
 Spring两大核心：DI(Dependency Injection,依赖注入)，AOP(Aspect-Oriented Programming，面向切面编程)
 
+DI有助于应用对象之间的解耦，AOP实现了横切关注点与它们影响的对象之间的解耦
+
 ## DI-依赖注入
 
 装配(wiring)，创建应用组件之间协作的行为
