@@ -5,6 +5,7 @@
   ```
   @Component("ID")
   ```
+  @Controller，声明控制器
 
 - @ComponentScan，使用java进行装配时，使用该注解启用组件扫描。默认扫描与配置类相同的包，查找带有@Component注解的类。也可以自己设置扫描的包路径：
 
@@ -55,6 +56,22 @@
   public class SoundSystemConfig {
   
   }
+  ```
+
+- 
+
+## Spring MVC
+
+- @Controller，生命一个控制器
+
+- @RequestMapping，声明所要处理的请求
+
+  ```java
+  //处理对"/"的GET请求
+  @RequestMapping(value="/",method=GET)
+  
+  //处理对"/my/request"请求
+  @RequestMapping("/my/request")
   ```
 
   
