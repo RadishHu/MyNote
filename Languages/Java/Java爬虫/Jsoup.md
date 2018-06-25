@@ -1,5 +1,16 @@
 # Jsoup
 
+pom依赖
+
+```xml
+<dependency>
+    <!-- jsoup HTML parser library @ https://jsoup.org/ -->
+    <groupId>org.jsoup</groupId>
+    <artifactId>jsoup</artifactId>
+    <version>1.10.3</version>
+</dependency>
+```
+
 ## 文档输入
 
 jsoup可以从字符串、URL地址、本地文件来加载HTML文档，并生成Document对象实例：
