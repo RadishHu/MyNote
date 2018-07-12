@@ -167,6 +167,77 @@
 
   加一个逗号，以免和数学意义上的括号混淆
 
+## dict
+
+dict, dictionary, 字典，在其它语言中也称为map，使用键-值(key-value)存储
+
+- 创建dict
+
+  ```python
+  >>> d = {'Michael': 95, 'Bob': 75, 'Tracy': 85}
+  >>> d['Michael']
+  95
+  ```
+
+- 判断key是否存在
+
+  - 通过in判断
+
+    ```python
+    >>> 'Thomas' in d
+    False
+    ```
+
+  - 通过get()方法，如果key不存在，就会返回None，或者自己指定的value
+
+    ```python
+    >>> d.get('Thomas')
+    >>> d.get('Thomas', -1)
+    -1
+    ```
+
+- 删除key
+
+  ```python
+  >>> d.pop('Bob')
+  75
+  ```
+
+## Set
+
+- 创建set，需要提供一个list作为输入
+
+  ```python
+  >>> s = set([1, 2, 3])
+  >>> s
+  {1, 2, 3}
+  ```
+
+- 添加元素
+
+  ```python
+  >>> s.add(4)
+  ```
+
+- 删除元素
+
+  ```python
+  >>> s.remove(4)
+  ```
+
+- set做交集、并集操作
+
+  ```python
+  >>> s1 = set([1, 2, 3])
+  >>> s2 = set([2, 3, 4])
+  >>> s1 & s2
+  {2, 3}
+  >>> s1 | s2
+  {1, 2, 3, 4}
+  ```
+
+
+
 ## 条件判断
 
 - if语句
@@ -260,71 +331,3 @@
       print(n)
   ```
 
-## dict
-
-dict, dictionary, 字典，在其它语言中也称为map，使用键-值(key-value)存储
-
-- 创建dict
-
-  ```python
-  >>> d = {'Michael': 95, 'Bob': 75, 'Tracy': 85}
-  >>> d['Michael']
-  95
-  ```
-
-- 判断key是否存在
-
-  - 通过in判断
-
-    ```python
-    >>> 'Thomas' in d
-    False
-    ```
-
-  - 通过get()方法，如果key不存在，就会返回None，或者自己指定的value
-
-    ```python
-    >>> d.get('Thomas')
-    >>> d.get('Thomas', -1)
-    -1
-    ```
-
-- 删除key
-
-  ```python
-  >>> d.pop('Bob')
-  75
-  ```
-
-## Set
-
-- 创建set，需要提供一个list作为输入
-
-  ```python
-  >>> s = set([1, 2, 3])
-  >>> s
-  {1, 2, 3}
-  ```
-
-- 添加元素
-
-  ```python
-  >>> s.add(4)
-  ```
-
-- 删除元素
-
-  ```python
-  >>> s.remove(4)
-  ```
-
-- set做交集、并集操作
-
-  ```python
-  >>> s1 = set([1, 2, 3])
-  >>> s2 = set([2, 3, 4])
-  >>> s1 & s2
-  {2, 3}
-  >>> s1 | s2
-  {1, 2, 3, 4}
-  ```
