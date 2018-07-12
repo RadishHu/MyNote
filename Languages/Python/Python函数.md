@@ -111,4 +111,70 @@
   151.96152422706632 70.0
   ```
 
+
+## 函数参数
+
+- 默认参数
+
+  为函数的参数设置一个默认值
+
+  ```python
+  def power(x, n=2):
+      s = 1
+      while n > 0:
+          n = n - 1
+          s = s * x
+      return s
+  ```
+
+  当调用power(5)时，相当于调用power(5,2)
+
+  设置默认参数的注意事项：
+
+  - 必选参数在前，默认参数在后
+  - 默认参数必须指向不可变对象
+
+- 可变参数
+
+  ```python
+  def calc(*numbers):
+      sum = 0
+      for n in numbers:
+          sum = sum + n * n
+      return sum
+  ```
+
+  可变参数numbers接收的是一个tuple，调用函数时可以传入任意个参数，包括0个参数
+
+  可以把list或tuple直接传给可变参数：
+
+  ```python
+  >>> nums = [1, 2, 3]
+  >>> calc(*nums)
+  14
+  ```
+
+- 关键字参数
+
+  关键字参数允许传入0个或任意个含参数名的参数，这些关键字参数在函数内部自动组装为一个dict
+
+  示例：
+
+  ```python
+  def person(name, age, **kw):
+      print('name:', name, 'age:', age, 'other:', kw）
+  
+  #传入任意个数的关键字参数
+   >>> person('Bob', 35, city='Beijing')
+  name: Bob age: 35 other: {'city': 'Beijing'}        
+  ```
+
+  可以先组装一个dict，然后把该dict作为参数传入：
+
+  ```python
+  >>> extra = {'city': 'Beijing', 'job': 'Engineer'}
+  >>> person('Jack', 24, **extra)
+  name: Jack age: 24 other: {'city': 'Beijing', 'job': 'Engineer'}
+  ```
+
   
