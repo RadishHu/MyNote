@@ -177,4 +177,22 @@
   name: Jack age: 24 other: {'city': 'Beijing', 'job': 'Engineer'}
   ```
 
+- 命名关键字参数
+
+  对于关键字参数，函数的调用者可以传入任意不受限制的关键字参数，如果要限制关键字参数的名字，就可以用命名关键字参数
+
+  ```python
+  def person(name, age, *, city, job):
+      print(name, age, city, job)
+  ```
+
+  分隔符`*`后面的参数被视为命名关键字参数
+
+  如果已经定义了一个可变参数，后面跟命名参数就不需要分隔符`*`：
+
+  ```python
+  def person(name, age, *args, city, job):
+      print(name, age, args, city, job)
+  ```
+
   
