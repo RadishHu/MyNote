@@ -236,8 +236,6 @@ dict, dictionary, 字典，在其它语言中也称为map，使用键-值(key-va
   {1, 2, 3, 4}
   ```
 
-
-
 ## 条件判断
 
 - if语句
@@ -276,7 +274,7 @@ dict, dictionary, 字典，在其它语言中也称为map，使用键-值(key-va
 
 ## 循环
 
-- for-int
+- for-in
 
   ```python
   names = ['Michael', 'Bob', 'Tracy']
