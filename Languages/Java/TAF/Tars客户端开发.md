@@ -152,3 +152,74 @@ public <T> T stringToProxy(Class<T> clazz, ServantProxyConfig servantProxyConfig
 
 #### 寻址方式
 
+Tars服务的寻址方式分为两种：服务名在主控注册和不在主控注册，主控是指专用于注册服务节点信息的名字服务(路由服务)
+
+- 没有在主控注册的服务，在服务的obj后面指定要访问的ip地址。客户端在调用的时候需要指定HelloObj对象的具体地址：
+
+  ```
+  TestApp.HelloServer.HelloObj@tcp -h 127.0.0.1 -p 9985
+  ```
+
+  > TestApp.HelloServer.HelloObj：对象名称
+  >
+  > tcp：tcp协议
+  >
+  > -h：指定主机地址
+  >
+  > -p：端口地址
+
+  如果HelloServer在两台服务器上运行，HelloPrx初始化的方式：
+
+  ```java
+  HelloPrx prx = c.stringToProxy("TestApp.HelloServer.HelloObj@tcp -h 127.0.0.1 -p 9985:tcp -h 192.168.1.1 -p 9983");
+  ```
+
+- 在主控中注册的服务，服务的寻址是基于服务名进行的，客户端在请求服务端的时候不需要指定HelloServer的具体地址，但是需要在生成通信器或初始化通信器的时候指定registry(主控中心)的地址
+
+  ```java
+  HelloPrx prx = c.stringToProxy<HelloPrx>("TestApp.HelloServer.HelloObj");
+  ```
+
+#### 单向调用
+
+电向调用，表示客户端只管发送数据，而不接收服务端的响应，也不管服务端是否接收到请求
+
+```java
+HelloPrx prx = c.stringToProxy("TestApp.HelloServer.HelloObj");
+//发起远程调用
+prx.async_hello(null, 1000, "hello word");
+```
+
+#### 同步调用
+
+```java
+HelloPrx prx = c.stringToProxy("TestApp.HelloServer.HelloObj");
+//发起远程调用
+prx.hello(1000, "hello word");
+```
+
+#### 异步调用
+
+```java
+HelloPrx prx = c.stringToProxy("TestApp.HelloServer.HelloObj");
+//发起远程调用
+prx.async_hello(new HelloPrxCallback() {
+
+    @Override
+    public void callback_expired() {
+    }
+
+    @Override
+    public void callback_exception(Throwable ex) {
+    }
+
+    @Override
+    public void callback_hello(String ret) {
+        System.out.println(ret);
+    }
+}, 1000, "hello word");
+```
+
+> * 当接收到服务端返回时，HelloPrxCallback的callback_hello会被响应
+> * 如果调用返回异常或超时，则callback_exception会被调用
+
