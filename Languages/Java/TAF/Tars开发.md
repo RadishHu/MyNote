@@ -1,4 +1,4 @@
-# Tars入门
+# Tars开发
 
 ## 目录
 
@@ -137,56 +137,19 @@
 - 添加依赖
 
   ```xml
-  <dependency>
-      <groupId>qq-cloud-central</groupId>
-      <artifactId>tars-client</artifactId>
-      <version>1.0.1</version>
-      <type>jar</type>
-  </dependency>
+  
   ```
 
 - 添加插件
 
   ```xml
-  <plugin>
-      <groupId>qq-cloud-central</groupId>
-      <artifactId>tars-maven-plugin</artifactId>
-      <version>1.0.1</version>
-      <configuration>
-          <tars2JavaConfig>
-              <!-- tars文件位置 -->
-              <tarsFiles>
-                  <tarsFile>${basedir}/src/main/resources/hello.tars</tarsFile>
-              </tarsFiles>
-              <!-- 源文件编码 -->
-              <tarsFileCharset>UTF-8</tarsFileCharset>
-              <!-- 生成代码，PS：客户端调用，这里需要设置为false -->
-              <servant>false</servant>
-              <!-- 生成源代码编码 -->
-              <charset>UTF-8</charset>
-              <!-- 生成的源代码目录 -->
-              <srcPath>${basedir}/src/main/java</srcPath>
-              <!-- 生成源代码包前缀 -->
-              <packagePrefixName>com.qq.tars.quickstart.client.</packagePrefixName>
-          </tars2JavaConfig>
-      </configuration>
-  </plugin>
+  
   ```
 
 - 根据服务tars接口文件生成代码
 
   ```java
-  @Servant
-  public interface HelloPrx {
   
-      public String hello(int no, String name);
-  
-      public String hello(int no, String name, @TarsContext java.util.Map<String, String> ctx);
-  
-      public void async_hello(@TarsCallback HelloPrxCallback callback, int no, String name);
-  
-      public void async_hello(@TarsCallback HelloPrxCallback callback, int no, String name, @TarsContext java.util.Map<String, String> ctx);
-  }
   ```
 
 - 同步调用
@@ -230,12 +193,7 @@
   }
   ```
 
-## 服务命名 <a id="chapter-3">
 
-Tars框架的服务，服务名称有三个部分：
 
-- APP：应用名，表示一组服务的一个小集合，在Tars系统中，应用名必须唯一。例如：TestApp
-- Server：服务名，提供服务的进程名称，Server名字根据业务服务功能命名，一般命名为：XXServer，例如：HelloServer
-- Servant：服务者，提供具体服务的接口或实例，例如：HelloImp
 
-一个Server可以包含多个Servant，系统会使用服务的App + Server + Servant 进行组合，来定义服务在系统中的路由名称，称为路由Obj，其名称在系统中必须是唯一的。例如：TestApp.HelloServer.HelloObj
+
