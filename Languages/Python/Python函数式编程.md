@@ -2,7 +2,14 @@
 
 函数式编程的一个特点是，允许把函数本身作为参数传入另一个函数，还允许返回一个函数
 
-## 高阶函数
+## 目录
+
+> * [高阶函数](#chapter1)
+> * [返回函数](#chapter2)
+> * [匿名函数](#chapter3)
+> * [偏函数](#chapter4)
+
+## 高阶函数 <a id="chapter1"></a> 
 
 一个函数可以接收另一个函数作为参数，这种函数称为高阶函数
 
@@ -141,3 +148,98 @@
   >>> sorted(['bob', 'about', 'Zoo', 'Credit'], key=str.lower, reverse=True)
   ['Zoo', 'Credit', 'bob', 'about']
   ```
+
+## 返回函数 <a id="chapter2"></a>
+
+高阶函数除了可以接受函数作为参数外，还可以把函数作为结果返回
+
+示例：
+
+通常情况下的求和函数定义：
+
+```python
+def calc_sum(*args):
+    ax = 0
+    for n in args:
+        ax = ax + n
+    return ax
+```
+
+返回求和函数：
+
+```python
+def lazy_sum(*args):
+    def sum():
+        ax = 0
+        for n in args:
+            ax = ax + n
+        return ax
+    return sum
+```
+
+调用`lazy_sum()`时，返回的并不是求和结果，而是求和函数：
+
+```python
+>>> f = lazy_sum(1, 3, 5, 7, 9)
+>>> f
+<function lazy_sum.<locals>.sum at 0x101c6ed90>
+```
+
+调用`f`时，才真正计算求和的结果：
+
+```python
+>>> f()
+25
+```
+
+> * 函数`lazy_sum`中定义了函数`sum`,并且内部函数`sum`引用外部函数`lazy_sum`的参数和局部变量，当`lazy_sum`返回函数`sum`时，相关参数和变量都保存在返回函数中，这样就产生了闭包
+> * 闭包是一个函数返回值依赖于声明在函数外部的一个或多个变量
+> * 返回函数并没有立刻执行，而是直接调用`f()`才执行
+
+## 匿名函数 <a id="chapter3"></a>
+
+匿名函数，当需要传入函数时，有时不需要显示地定义函数，而是直接传入匿名函数
+
+匿名函数的限制：只能有一个表达式，不用写return，返回值就是该表达式的结果
+
+示例，使用map()函数，计算f(x)=x*x:
+
+```python
+>>> list(map(lambda x: x * x, [1, 2, 3, 4, 5, 6, 7, 8, 9]))
+[1, 4, 9, 16, 25, 36, 49, 64, 81]
+```
+
+> 关键字`lambda`表示匿名函数，冒号前面的`x`表示函数参数
+
+## 偏函数 <a id="chapter4"></a>
+
+偏函数(Partial function)是Python的`funtools`模块的提供的一个功能
+
+`int()`函数提供了`base`参数，默认值为10，用于指定转换的进制：
+
+```python
+>>> int('12345', base=8)
+5349
+>>> int('12345', 16)
+74565
+```
+
+如果要进行大量的二进制字符串转换，每次传入`int(x,base=2)`很繁琐，可以定义一个`int(2)`函数，默认把`base=2`传入：
+
+```python
+def int2(x, base=2):
+    return int(x, base)
+
+>>> int2('1000000')
+64
+```
+
+`functools.partial`可以帮助我们创建一个偏函数，不需要自己定义`int2()`：
+
+```python
+>>> import functools
+>>> int2 = functools.partial(int, base=2)
+>>> int2('1000000')
+64
+```
+
