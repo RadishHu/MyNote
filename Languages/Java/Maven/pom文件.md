@@ -16,10 +16,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!-- 这个一般是公司或组织的名字, 一般由三部分组成:
-  	第一部分是项目的性质, 商业性质的是 com,非盈利性组织的是 org;
-    	第二部分是公司名,apache,alibaba;
+  	 第一部分是项目的性质, 商业性质的是 com,非盈利性组织的是 org;
+    	 第二部分是公司名,apache,alibaba;
     	 第三部分是项目名,dubbo,zookeeper;
-   	-->
+    -->
     <groupId>com.winner.trade</groupId>
 
     <!-- 项目名 -->
