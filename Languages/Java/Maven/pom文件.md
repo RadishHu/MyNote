@@ -4,6 +4,7 @@
 
 >* [基础配置](#chapter1)
 >* [构建配置](#chapter2)
+>* [profile配置](#chapter3)
 
 ## 基础配置 <a id="chapter1"></a>
 
@@ -15,13 +16,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!-- 这个一般是公司或组织的名字, 一般由三部分组成:
-
-  		第一部分是项目的性质, 商业性质的是 com,非盈利性组织的是 org;
-
-  		第二部分是公司名,apache,alibaba;
-
-  		第三部分是项目名,dubbo,zookeeper;
-  	-->
+  	第一部分是项目的性质, 商业性质的是 com,非盈利性组织的是 org;
+    第二部分是公司名,apache,alibaba;
+    第三部分是项目名,dubbo,zookeeper;
+   -->
     <groupId>com.winner.trade</groupId>
 
     <!-- 项目名 -->
@@ -78,6 +76,9 @@
 
     <!-- 构建配置 -->
     <build></build>
+    
+    <!-- profile配合 -->
+    <profiles></profiles>
 
 
     ...
@@ -236,5 +237,79 @@
     </pluginManagement>
 
 </build>
+```
+
+## profile配置 <a id="chapter3"></a>
+
+```xml
+<profiles>
+
+    <!-- 根据环境参数或命令行参数激活某个构建处理 -->
+    <profile>
+        <!-- 自动触发profile的条件 -->
+        <activation>
+
+            <!-- profile默认是否激活 -->
+            <activeByDefault>false</activeByDefault>
+
+            <!-- activation内建的java版本检测,如果检测到jdk版本与期待的一样,profile被激活 -->
+            <jdk>1.7</jdk>
+
+            <!--os元素定义操作系统相关的属性,当匹配的操作系统属性被检测到,profile被激活 -->
+            <os>
+
+                <!--激活profile的操作系统的名字 -->
+                <name>Windows XP</name>
+
+                <!--激活profile的操作系统所属家族(如 'windows') -->
+                <family>Windows</family>
+
+                <!--激活profile的操作系统体系结构 -->
+                <arch>x86</arch>
+
+                <!--激活profile的操作系统版本 -->
+                <version>5.1.2600</version>
+
+            </os>
+
+            <!--如果Maven检测到某一个属性(其值可以在POM中通过${名称}引用),其拥有对应的名称和值,Profile就会被激活
+			如果值字段是空的,那么存在属性名称字段就会激活profile,否则按区分大小写方式匹配属性值字段
+			-->
+            <property>
+
+                <!--激活profile的属性的名称 -->
+                <name>mavenVersion</name>
+
+                <!--激活profile的属性的值 -->
+                <value>2.0.3</value>
+
+            </property>
+
+            <!--提供一个文件名,通过检测该文件的存在或不存在来激活profile
+			missing检查文件是否存在,如果不存在则激活profile
+			exists则会检查文件是否存在,如果存在则激活profile
+			-->
+            <file>
+
+                <!--如果指定的文件存在,则激活profile。 -->
+                <exists>/usr/local/hudson/hudson-home/jobs/maven-guide-zh-to-production/workspace/</exists>
+
+                <!--如果指定的文件不存在,则激活profile。 -->
+                <missing>/usr/local/hudson/hudson-home/jobs/maven-guide-zh-to-production/workspace/</missing>
+
+            </file>
+
+        </activation>
+        <id />
+        <build />
+        <modules />
+        <repositories />
+        <pluginRepositories />
+        <dependencies />
+        <reporting />
+        <dependencyManagement />
+        <distributionManagement />
+        <properties />
+    </profile>
 ```
 
