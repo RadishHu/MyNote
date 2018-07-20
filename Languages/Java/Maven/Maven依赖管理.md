@@ -10,7 +10,7 @@
 
 - modelVersion
 
-  指定当前Maven模型的编号, 对于Maven2和Maven3,这个编号是4.0.0
+  指定当前Maven模型的版本, 对于Maven2和Maven3,这个版本是4.0.0
 
 - groupId
 
@@ -28,7 +28,7 @@
 
 - version
 
-  版本号, SNAPSHOT快照的意思, 表名项目还在开发中,是不稳定版本
+  版本号, SNAPSHOT快照的意思, 表明项目还在开发中,是不稳定版本
 
   groupId,artifactId,version构成了一个Maven项目的基本坐标
 
