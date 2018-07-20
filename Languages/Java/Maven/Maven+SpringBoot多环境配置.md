@@ -63,5 +63,5 @@
 ## 扩展内容
 
 > * [SpringBoot多环境配置](/Languages/Java/SpringBoot/SpringBoot多环境配置.md)
-> * [Maven-pom文件](/Languages/Java/Maven/pom文件.md)
+> * [Maven-pom文件详解](/Languages/Java/Maven/pom文件.md)
 
