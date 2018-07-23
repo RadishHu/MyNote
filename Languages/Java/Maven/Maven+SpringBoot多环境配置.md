@@ -39,6 +39,7 @@
   	</profile>
   </profiles>
   ```
+  > `<activeByDefault>true</activeByDefault>`表示默认的配置，使用maven打包时，如果没有指定环境，默认使用`activeByDefault`为`true`的配置
 
 - 使用maven命令打包：
 
@@ -46,9 +47,9 @@
   mvn clean package -P prod -U
   ```
 
-- IDEA中运行项目：
+- IDE中运行项目：
 
-  在idea中直接运行项目会报错：
+  直接运行项目会报错：
 
   ```
   ava.lang.IllegalArgumentException: Could not resolve placeholder
@@ -60,8 +61,31 @@
   --spring.profiles.active=dev
   ```
 
+- 在IDEA中打包和运行项目：
+
+  MavenProjects ---> Profiles 选择相应的环境
+
 ## 扩展内容
 
 > * [SpringBoot多环境配置](/Languages/Java/SpringBoot/SpringBoot多环境配置.md)
 > * [Maven-pom文件详解](/Languages/Java/Maven/pom文件.md)
+
+## 优化——只打包用的配置文件
+
+```xml
+<build>
+    <resources>
+        <resource>
+            <filtering>true</filtering>
+            <directory>src/main/resources</directory>
+            <includes>
+                <include>mybatis/**</include>
+                <include>application.properties</include>
+                <include>application-${profileActive}.properties</include>
+                <include>log4j.properties</include>
+            </includes>
+        </resource>
+    </resources>
+</build>
+```
 
