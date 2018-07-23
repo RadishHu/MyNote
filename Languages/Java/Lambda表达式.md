@@ -1,11 +1,99 @@
 # Lambda表达式
 
-## Lambda表达式语法
+## 目录
+
+> * [简介](#chapter1)
+> * [函数式接口](#chapter2)
+> * [Lambda表达式语法](#chapter3)
+> * [Lambda表达式使用示例](#chapter4)
+> * [使用Lambds和Streams](#chapter5)
+
+## 简介 <a id="chapter1"></a>
+
+Lambda表达式 用一个表达式实现了 单个接口方法(函数式接口)
+
+Lambda表达式长用作匿名内部类的替代
+
+## 函数式接口 <a id="chapter2"></a>
+
+Lambdas只能在一个仅包含一个抽象方法的函数式接口上操作
+
+函数式接口指具有单个抽象方法的接口：
+
+```java
+interface Foo1 {
+    void bar();
+}
+
+interface Foo2 {
+    int bar(boolean baz);
+}
+
+interface Foo3 {
+    String bar(Object baz, int mink);
+}
+
+interface Foo4 {
+    default String bar() { // default so not counted
+        return "baz";
+    }
+    void quux();
+}
+```
+
+在盛明明函数式接口时，可以添加一个`@FunctionalInterface`注解，如果这个注解被用于非函数式接口，会产生`compiler error`：
+
+```java
+@FunctionalInterface
+interface Foo5 {
+    void bar();
+}
+
+@FunctionalInterface
+interface BlankFoo1 extends Foo3 { // inherits abstract method from Foo3
+}
+
+@FunctionalInterface
+interface Foo6 {
+    void bar();
+    boolean equals(Object obj); // overrides one of Object's method so not counted
+}
+```
+
+非函数式接口：
+
+```java
+//多个抽象方法
+interface BadFoo {
+    void bar();
+    void quux(); // <-- Second method prevents lambda: which one should be considered as lambda?
+}
+
+//没有抽象方法
+interface BlankFoo2 { }
+```
+
+## Lambda表达式语法 <a id="chapter3"></a>
+
+Lambda表达式的基本结构：
 
 ```
-(parameters) -> expression
-或
-(parameters) -> {statements;}
+FunctionalInterface fi = () -> System.out.println("hello");
+```
+
+> * ()：Method Signature
+> * ->：Lambda Operator
+> * System.out.println("hello")：Method Implementation
+
+`fi`持有一个实现了`FunctionalInterface`接口的匿名类的实例，等价于：
+
+```java
+FunctionalInterface fi = new FunctionalInterface() {
+    @Override
+    public void theOneMethod() {
+        System.out.println("Hello");
+    }
+};
 ```
 
 示例：
@@ -27,7 +115,7 @@ x -> 2 * x
 (String s) -> System.out.println(s)
 ```
 
-## Lambda表达式使用示例
+## Lambda表达式使用示例 <a id="chapter4"></a>
 
 - 遍历List集合
 
@@ -104,7 +192,7 @@ x -> 2 * x
   Arrays.sort(players,(String s1,String s2) -> (s1.compareTo(s2)));
   ```
 
-## 使用Lambds和Streams
+## 使用Lambds和Streams <a id="chapter5"></a>
 
 Stream是对集合的包装，它是懒计算。
 
