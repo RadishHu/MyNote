@@ -24,7 +24,7 @@ x -> 2 * x
 (int x,int y) -> x + y
 
 //接受一个string对象，在控制台打印，不返回任何值
-(String s) -> System.out.pringln(s)
+(String s) -> System.out.println(s)
 ```
 
 ## Lambda表达式使用示例
