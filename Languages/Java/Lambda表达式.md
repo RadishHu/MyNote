@@ -1,5 +1,9 @@
 # Lambda表达式
 
+参考：
+
+> * [Lambda Expressions](https://blog.csdn.net/lsgqjh/article/details/54582945)
+
 ## 目录
 
 > * [简介](#chapter1)
