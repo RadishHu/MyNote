@@ -83,3 +83,40 @@ if __name__=='__main__':
 类似`_xxx`这样的函数或变量是非公开的(private)，不应该被直接引用，但是并不是说“不能”被直接引用
 
 类似`_xxx_`这样的特殊变量，可以被直接引用，但是有特殊用途，比如`_author`，`_name_`就是特殊变量，`hello`模块定义的文档注释可以 用特殊变量`_doc_`访问
+
+## 安装第三方模块
+
+- pip
+
+  通过包管理工机具pip可以安装第三方模块
+
+  可以通过Python官方的[pypi.python.org](https://pypi.python.org/) 网站查询第三方库的名称，然后通过pip安装。安装Pillow：
+
+  ```python
+  pip install Pillow
+  ```
+
+- Anaconda
+
+  使用pip一个个安装第三方模块费时费力，还要考虑兼容性。因此可以使用Anaconda,它是一个基于Python的数据处理和科学计算平台，内置了许多常用的第三方库
+
+### 模块搜索路径
+
+当加载一个模块时，Python会在指定路径下搜索对应的.py文件，搜索路径存放在`sys`模块的`path`变量中：
+
+```python
+import sys
+sys.path
+```
+
+添加搜索路径的方法：
+
+- 直接修改`sys.path`：
+
+  ```python
+  import sys
+  sys.path.append('/my/modle')
+  ```
+
+- 设置环境变量`PTTHONPATH`，该环境变量的内容会被自动添加到搜索路径中
+
