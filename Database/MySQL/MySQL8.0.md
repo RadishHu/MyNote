@@ -25,4 +25,26 @@
   flush privileges;
   ```
 
-  
+
+## 远程连接
+
+使用远程工具连接mysql会报错：
+
+> 1251 Client does not support authentication protocol requested by server; consider upgrading MySQL client 
+
+原因：
+
+mysql8.0采用`caching_sha2_password `进行加密，之前加密是用`mysql_native_password `
+
+解决方法：
+
+把mysql用户登录密码加密规则还原为`mysql_native_password`
+
+```sql
+use mysql;
+
+ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'yourPassword';
+
+FLUSH PRIVILEGES;
+```
+
