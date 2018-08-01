@@ -1,6 +1,14 @@
 # CentOS7 yum安装MySQL
 
-## yum安装失败
+## 目录
+
+> * [yum安装失败](#chapter1)
+> * [安装方法](#chapter2)
+> * [修改密码](#chapter3)
+> * [远程连接授权](#chpater4)
+> * [文件路径](#chapter5)
+
+## yum安装失败 <a id="chapter1"></a>
 
 yum安装mysql：
 
@@ -24,7 +32,7 @@ Error: Nothing to do
 
 CentOS7将MySQL从默认程序列表移除，用mariadb代替
 
-## 安装方法
+## 安装方法 <a id="chapter2"></a>
 
 - 添加mysql到repo：
 
@@ -46,7 +54,7 @@ CentOS7将MySQL从默认程序列表移除，用mariadb代替
   systemctl start mysqld.service
   ```
 
-## 修改临时密码
+## 修改临时密码 <a id="chapter3"></a>
 
 - 获取临时密码：
 
@@ -90,7 +98,7 @@ CentOS7将MySQL从默认程序列表移除，用mariadb代替
     ALTER USER 'root'@'localhost' IDENTIFIED BY 'root123';
     ```
 
-## 开启数据库远程连接权限
+## 开启数据库远程连接权限 <a id="chapter4"></a>
 
 ```sql
 use mysql;
@@ -103,3 +111,14 @@ flush privileges;
 > `by "root"`代表数据库的密码
 
 MySQL8.0授权方式有所不同，参考：[MySQL8.0授权方式](/Database/MySQL/MySQL8.0.md)
+
+## 文件路径 <a id="chapter5"></a>
+
+CentOS7下安装mysql的默认路径：
+
+- 配置文件：/etc/my.cof
+- 日志文件：/var/log/mysqld.log
+- 服务启动脚本：/usr/lib/systemd/system/mysqld.service
+- pid文件：/var/run/mysqld/mysqld.pid
+- socket文件：/var/lib/mysql/mysql.sock
+- 数据文件：/var/lib/mysql
