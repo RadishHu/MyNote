@@ -18,3 +18,8 @@ RIGHT JOIN也称为RIGHT OUTER JOIN
 
 从右表返回所有行，即使左表没有与之匹配的行
 
+## FULL JOIN
+
+FULL JOIN 也称为FULL OUTER JOIN
+
+从左表和右表中返回所有的行，即使左表在右表中没有匹配的行，或右表在左表中没有匹配的行，同样都会列出
