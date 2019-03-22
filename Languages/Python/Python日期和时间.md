@@ -95,9 +95,9 @@ Python 提供一 time 和 calendar 模块处理日期和时间
 
   接受时间元组，并返回以可读字符串表示的时间，格式由 format 决定
 
-- time.strptime(str,fmt='Format')
+- time.strptime(str,'format')
 
-  根据 fmt 的格式把一个时间字符串解析为时间元组
+  根据 format 的格式把一个时间字符串解析为时间元组
 
 - time.asctime([tupletime])
 
