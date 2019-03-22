@@ -1,12 +1,18 @@
 # Python 日期和时间
 
+## 目录
+
+> * [时间元组](#chapter1)
+> * [日期格式化符号](#chapter2)
+> * [time 模块](#chapter3)
+
 Python 提供一 time 和 calendar 模块处理日期和时间
 
 时间戳是从 1970年1月1日 起经过的时间，单位是秒(s)
 
 
 
-## 时间元组
+## 时间元组 <a id="chapter1"></a>
 
 很多 Python 函数用一个包含9组数字的元组来处理时间：
 
@@ -24,7 +30,7 @@ Python 提供一 time 和 calendar 模块处理日期和时间
 
 
 
-## 日期格式化符号
+## 日期格式化符号 <a id="chapter2"></a>
 
 | 符号 | 备注                         |
 | ---- | ---------------------------- |
@@ -53,7 +59,7 @@ Python 提供一 time 和 calendar 模块处理日期和时间
 
 
 
-## time 模块
+## time 模块 <a id="chapter3"></a>
 
 - time.time()
 
