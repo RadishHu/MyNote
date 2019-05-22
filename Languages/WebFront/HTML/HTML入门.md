@@ -158,7 +158,7 @@ HTML图像是通过标签\<img>来定义：
   </table>
   ```
 
-### HTML列表 < a id="chapter2-6"></a>
+### HTML列表 <a id="chater2-7"></a>
 
 HTML支持有序列表、无序列表和定义列表
 
@@ -504,11 +504,23 @@ document.write("Hello World!")
 <noscript>抱歉，你的浏览器不支持 JavaScript!</noscript>
 ```
 
-## HTML字符实体 <a id="chapter9"></a>
+## HTML 转义字符 <a id="chapter9"></a>
 
 在HTML中，一些字符是预留的，比如，不能直接使用小于号(<)和大于号(>)，因为浏览器会误认为它们是标签
 
 如果希望正确地显示预留字符，必须在HTML源代码中使用字符实体，如需显示小于号，可以这样写：`&lt`、`&#60`或者`&#060`
+
+转义字符有：
+
+| 字符 | 转义字符 |
+| ---- | -------- |
+| "    | &quot    |
+| &    | &amp     |
+| <    | &lt      |
+| >    | &gt      |
+| 空格 | &nbsp    |
+
+
 
 ## HTML URL <a id="chapter10"></a>
 
