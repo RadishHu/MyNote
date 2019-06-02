@@ -135,7 +135,7 @@ v-on:click="method"
         <li v-for="item of list">{{item}}</li>
     </ul>
     <ul>
-        <li v-for="(item,index) of list">{{item}}</li>
+        <li v-for="(item,index) of list" :key="index">{{item}}</li>
     </ul>
 </div>
 <script>
@@ -143,6 +143,34 @@ v-on:click="method"
         el: '#app',
         data: {
             list: [1,2,3]
+        }
+    })
+</script>
+```
+
+> key 属性
+>
+> 使用 `v-for` 的时候提供 `key` 属性，以获取性能提升
+>
+> 使用 key, vue 会基于 key 的变化重新排列元素顺序，并会移除 key 不存在的元素
+
+## v-if 和 v-show
+
+条件渲染
+
+`v-if`：根据表达式的值的真假条件，销毁或重建元素
+
+`v-show`：根据表达式值的真假条件，切换元素的 display 属性值
+
+```html
+<div id="app">
+    <p v-if="seen">现在你看到我了</p>
+</div>
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            seen: true
         }
     })
 </script>

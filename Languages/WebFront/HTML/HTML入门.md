@@ -1,6 +1,36 @@
 # HTML入门
 
-## 目录
+HTML，Hyper Text Markup Language，超文本标记语言
+
+HTML 是一种标记语言，通过标记标签来描述网页
+
+- \<!DOCTYPE>
+
+  \<!DOCTYPE>声明用于帮助浏览器正确显示网页
+
+  通用声明：
+
+  - HTML5
+
+    ```html
+    <!DOCTYPE html>
+    ```
+
+  - HTML4.01
+
+    ```html
+    <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+    ```
+
+  - XHTML1.0
+
+    ```html
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    ```
+
+# 目录
 
 > - [<!DOCTYPE>声明](#chapter1)
 > - HTML标签
@@ -20,43 +50,11 @@
 > - [HTML脚本](#chapter8)
 > - [HTML URL](#chapter10)
 
-HTML，Hyper Text Markup Language，超文本标记语言
 
-HTML不是一种编程语言，而是一种标记语言
-
-HTML通过标记标签来描述网页
-
-## <!DOCTYPE>声明 <a id="chapter1"></a>
-
-<!DOCTYPE>声明用于帮助浏览器正确显示网页
-
-doctype生命不区分大小写
-
-通用声明：
-
-- HTML5
-
-  ```html
-  <!DOCTYPE html>
-  ```
-
-- HTML4.01
-
-  ```html
-  <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
-  "http://www.w3.org/TR/html4/loose.dtd">
-  ```
-
-- XHTML1.0
-
-  ```html
-  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-  ```
 
 ## HTML标签
 
-### HTML标题 <a id="chapter2-1"></a>
+### 标题 <a id="chapter2-1"></a>
 
 HTML标题通过\<h1>-\<h6>标签来定义：
 
