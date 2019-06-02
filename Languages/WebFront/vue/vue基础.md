@@ -114,6 +114,7 @@ new Vue({
 })
 ```
 
+<<<<<<< HEAD
 还有一些其它钩子，在实例生命周期的不同阶段被调用哪个，如 `mounted` , `updated`, `destroyed`
 
 ### Vue 实例生命周期
@@ -126,4 +127,50 @@ new Vue({
 
 
 
+=======
+在使用 v-for 时提供 key 属性：
+
+```html
+<div v-for="item in items" v-bind:key="item.id">
+    <!-- 内容 -->
+</div>
+```
+
+## v-for 对象
+
+语法：
+
+```
+v-for="value in object"
+
+# 带键名
+v-for="(value, name) in object"
+
+# 带索引
+v-for="(value, name, index) in object"
+```
+
+> 遍历对象是按 `Object.keys()` 的结果遍历
+
+```html
+<ul id="app">
+    <li v-for="value in object"
+        {{value}}
+    </li>
+</ul>
+```
+
+```js
+new Vue({
+    el: "#app",
+    data: {
+        object: {
+            title: 'How to do lists in Vue',
+            author: 'Jane Doe',
+            publishedAt: '2016-04-10'
+        }
+    }
+})
+```
+>>>>>>> 9d1c8311a2b2d75ca6007f7803aa6dd56a99befb
 
