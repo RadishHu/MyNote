@@ -1,36 +1,32 @@
-# Kafka简介
+# Kafka
 
-Kafka是一个分布式消息队列，对消息保存时根据Topic进行归类，发送消息者称为Producer，消息接受者称为Consumer，Producer推送数据，Consumer拉取数据
+Kafka 是一个消息队列(MQ)，消息队列是存放消息的容器
 
-Kafka集群由多个实例组成，每个实例(server)成为broker
+# Kafka 的作用
 
-Kafka集群依赖于zookeeper保存meta信息
+- 削峰
 
-## Kafka基础概念
+- 解耦
 
-- Topic：一类消息，每个topic被分为多个partition，分区数可以在集群配置文件中配置
-- Partition
-  - 在存储层面时逻辑append log文件，每个partition由多个segment组成
-  - 任何发布到此partition的消息都会被直接追加到log文件尾部
-  - 每个partiton在内存中对应一个index列表，记录每个segment第一条消息偏移，查找消息时，先在index列表中定位，再读取文件，速度快
-  - producer发布到某个topic的消息会被均匀发布到part上，broker受到发布消息往part的最后一个segment上添加消息
-- Segment
-  - 当segment上的消息条数达到配置值或消息发布时间超过阀值，segment上的消息会被flush到磁盘，只有flush到磁盘的消息，订阅者才能订阅到数据
-  - segment达到一定的大小(默认1G)，不会再往该segment写数据，borker会创建新的segment
-- offset
-  - segment日志文件中保存了一系列log entries，log entries的格式为：消息长度 + 消息内容
-  - segment日志文件都有一个offset来唯一标记一条消息，segment文件命名为：‘最小offset’.log
+# Kafka 架构原理
 
-## Kafka保证数据不丢失
+## Kafka 相关概念
 
-- Producer保证数据不丢失
+- Break: Kafka 集群中的一台服务器就是一个 Break
+- Producer: 消息生产者
+- Consumer: 消息消费者
+- Consumer Group: 消费组。每个 Consumer 都属于一个 Consumer Group，每条消息只能被 Consumer Group 中的一个 Consumer 消费，但是可以被多个 Consumer Group 消费
+- Topic: 消息的类型。每条消息都属于某个 Topic，Kafka 是面向 Topic 的
+- Partition: 每个 Topic 分为多个 Partition，Partition 是 kafka 分配单位。Partition 在 Kafka 中的物理上的概念，相当于一个目录，目录下的日志文件构成 Partition
+- Replica: Partition 的副本，保证 Partition 的高可用
+- Leader: Replica 中的一个角色，Producer 和 Consumer 只跟 Leader 交互
+- Follower: Replica 中的一个角色，从 Leader 中复制数据
+- Controller: Kafka 集群中的一个服务器，用来进行 Leader Election 以及各种 Failover
+- Zookeeper: Kafka 通过 Zookeeper 来存储集群中的 Meta 信息
 
-  通过ack机制：再kafka发送数据的时候，每次发送消息都会有一个确认反馈机制，确保消息能被收到
+## Topic & Logs
 
-- broker保证数据不丢失
+Message 是按照 Topic 来组织的，每个  Topic 可以分成多个 Partiton(Partition 的数量由 service.properties/num.partitions 控制)
 
-  数据备份，副本机制
+Partition 是一个顺序的追加日志，属于顺序写磁盘(顺序写磁盘效率比随机写内存高，保障了 Kafka 的吞吐率)
 
-- Consumer保证数据不丢失
-
-  offset，记录每次消费到哪一条数据，下次接着上次的消费记录进行消费
