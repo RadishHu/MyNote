@@ -21,6 +21,8 @@ Flume 的是使用不仅受限于日志采集。因为数据源是可以自定�
 
 `source` 消费从外部的数据源(或另外一个 agent 节点的 sink)传送过来的 `event`，然后将 `event` 存储到 `channel` 中，最后 `event` 被 `sink` 传送到目标数据源(或另外一个 agent 节点的 source)。
 
+![agent](http://flume.apache.org/_images/UserGuide_image00.png)
+
 ## 可靠性
 
 Flume 使用事务来保证 event 传递的可靠性。source 将 event 存储在 channel 中 和 sink 从 channel 中去除 event 分别放在两个事务中。在多节点的数据流中，event 从上一个节点的 sink 到 下一个节点的 sink 同样通过事务来保证数据传递的可靠性。
@@ -159,3 +161,78 @@ $ bin/flume-ng agent –conf conf -z zkhost:2181,zkhost1:2181 -p /flume –name 
 
 ### 安装第三方插件
 
+Flume 有一个完整地插件架构，flume 运行着许多外部的 sources, channel, sinks 上，它们的运行都是跟 flume 分开的。
+
+Flume 可以运行自定的组件，需要把自定义组件的 jar 包添加到 flume-env.sh  文件中 FLUME_CLASSPATH 变量指定的目录中。Flume 现在有一个 `plugins.d` 可以自动获取以特定格式打包的插件，这样更容易管理插件。
+
+**plugins.d 目录**
+
+`plugins.d` 目录在 $FLUME_HOME/plugins.d，在启动的时候，`flume-ng` 脚本会在 `plugins.d` 目录下查找合适的组件并把它们的绝对路径包括在启动的 `java` 进程中。
+
+**目录结构**
+`plugins.d` 目录中的每个插件都有三个子目录：
+
+- lib - 插件的 jar 包
+- libext - 插件依赖的 jar 包
+- native - 本地依赖库，比如 `.so` 文件
+
+示例：
+
+```
+plugins.d/
+plugins.d/custom-source-1/
+plugins.d/custom-source-1/lib/my-source.jar
+plugins.d/custom-source-1/libext/spring-core-2.5.6.jar
+plugins.d/custom-source-2/
+plugins.d/custom-source-2/lib/custom.jar
+plugins.d/custom-source-2/native/gettext.so
+```
+
+## 数据源
+
+Flume 支持多种从外部数据获取数据的方式。
+
+### RPC
+
+一个包含在 flume 中的 Avro 客户端，可以通过 avro RPC 机制发送一个文件到 flume 的 `Avro source` :
+
+```shell
+$ bin/flume-ng avro-client -H localhost -p 41414 -F /usr/logs/log.10
+```
+
+> 这个命令发送 /usr/logs/log.10 到 flume source 监听的端口
+
+### 执行命令
+
+Flume 中有一个 `exec source` ，它通过执行一个给定的命令，并获取这个命令的输出作为传输数据，命令输出的一个行是一条数据(以 '\r'、'\n'或'\r\n' 结尾)。
+
+### 网络数据源
+
+Flume 支持以下几种机制来获取网络数据：
+
+- Avro
+- Thrift
+- Syslog
+- Netcat
+
+## 创建多级 agent 数据流
+
+![多级 agent](http://flume.apache.org/_images/UserGuide_image03.png)
+
+要在多级 agent 中传递数据，上一级 agent 的 sink 和下一级的 source 需要时 avro 类型的，并且 sink 指向 source 的 hostname 和 port.
+
+## 合并数据流
+
+日志采集中一个非常常见的方案：非常多的生产日志的客户端把日志数据发送到几个跟存储系统关联着的 agent 中。比如，成千上百的 web 服务把发送日志到十几个 agent 中，然后 agent 把日志写入 HDFS。
+
+![](http://flume.apache.org/_images/UserGuide_image02.png)
+
+这个方案通过设置第一层级的 agent 为 `avro sink`，并指向一个单一 agent 的 `avro source` (也可以使用 `thrift source/sink/client`)。第二层级的 source 聚集数据到一个单一的 `channel` 并将数据发送到最终的目的地。
+
+## 多路传输的数据流
+
+Flume 支持传输数据到一个或多个目的地，通过定义一个多路的数据流，可以复制一个 event 到多个 channle 中。
+
+![](http://flume.apache.org/_images/UserGuide_image01.png)
+
+这个示例展示了一个 `source` 发送数据到三个不同的 `channel` 中。发送数据到多个 `channel` 既可以通过复制，也可以通过分散。如果是复制数据，一个 event 会被发送到每个 channel 中。如果是分散发送，一个 event 会被发送到一个跟 event 的属性值相配置的 channel 中，这个可以在 agent 的配置文件中进行配置。
