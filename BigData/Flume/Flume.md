@@ -236,3 +236,101 @@ Flume 支持传输数据到一个或多个目的地，通过定义一个多路�
 ![](http://flume.apache.org/_images/UserGuide_image01.png)
 
 这个示例展示了一个 `source` 发送数据到三个不同的 `channel` 中。发送数据到多个 `channel` 既可以通过复制，也可以通过分散。如果是复制数据，一个 event 会被发送到每个 channel 中。如果是分散发送，一个 event 会被发送到一个跟 event 的属性值相配置的 channel 中，这个可以在 agent 的配置文件中进行配置。
+
+# 配置
+
+Flume agent 的配置是从一个格式类似于 java 配置文件的文件中读取。
+
+## 定义数据流
+
+在一个单一的 agent 中定义数据流，需要通过 channel 来连接 source 和 sink。我们需要列出 agent 的 source、sink 和 channle，然后指定 source 和 sink 到同一个 channel。一个 source 可以连接多个 channel，但是一个 sinke 只能跟一个 channel 连接。配置文件的格式如下：
+
+```properties
+# list the sources, sinks and channels for the agent
+<Agent>.sources = <Source>
+<Agent>.sinks = <Sink>
+<Agent>.channels = <Channel1> <Channel2>
+# set channel for source
+<Agent>.sources.<Source>.channels = <Channel1> <Channel2> ...
+# set channel for sink
+<Agent>.sinks.<Sink>.channel = <Channel1>
+```
+
+示例：
+
+```properties
+# list the sources, sinks and channels for the agent
+agent_foo.sources = avro-appserver-src-1
+agent_foo.sinks = hdfs-sink-1
+agent_foo.channels = mem-channel-1
+# set channel for source
+agent_foo.sources.avro-appserver-src-1.channels = mem-channel-1
+# set channel for sink
+agent_foo.sinks.hdfs-sink-1.channel = mem-channel-1
+```
+
+> 这里的 agent 名为 agent_foo，它从外部的 avro 客户端读取数据，然后通过 memory channel 将数据发送到 HDFS 。
+
+## 设置 agent 中的每个组件
+
+定义了数据流之后，我们需要设置每个 source、sink 和 channle 的属性。这个也是在同一个配置文件找中进行设置，你可以设置每个组件的类型和属性值：
+
+```properties
+# properties for sources
+<Agent>.sources.<Source>.<someProperty> = <someValue>
+# properties for channels
+<Agent>.channel.<Channel>.<someProperty> = <someValue>
+# properties for sinks
+<Agent>.sources.<Sink>.<someProperty> = <someValue>
+```
+
+`type` 这个属性对于每个组件来说是必须要设置的，source、sink 和 channel 都有它们自己的一套属性。下面是完善从 avro source 采集数据最后存放到 HDFS 的数据的配置文件：
+
+```properties
+agent_foo.sinks = hdfs-Cluster1-sink
+agent_foo.channels = mem-channel-1
+# set channel for sources, sinks
+# properties of avro-AppSrv-source
+agent_foo.sources.avro-AppSrv-source.type = avro
+agent_foo.sources.avro-AppSrv-source.bind = localhost
+agent_foo.sources.avro-AppSrv-source.port = 10000
+# properties of mem-channel-1
+agent_foo.channels.mem-channel-1.type = memory
+agent_foo.channels.mem-channel-1.capacity = 1000
+agent_foo.channels.mem-channel-1.transactionCapacity = 100
+# properties of hdfs-Cluster1-sink
+agent_foo.sinks.hdfs-Cluster1-sink.type = hdfs
+agent_foo.sinks.hdfs-Cluster1-sink.hdfs.path = hdfs://namenode/flume/webdata
+```
+
+## agent 中添加多个数据流
+
+一个 agent 中可以包含多个单独的数据流，可以在一个配置文件中设置多个 source、sink 和 channel。通过它们可以组合成一个多重的数据流：
+
+```properties
+# list the sources, sinks and channels for the agent
+<Agent>.sources = <Source1> <Source2>
+<Agent>.sinks = <Sink1> <Sink2>
+<Agent>.channels = <Channel1> <Channel2>
+```
+
+示例：
+
+```properties
+# list the sources, sinks and channels in the agent
+agent_foo.sources = avro-AppSrv-source1 exec-tail-source2
+agent_foo.sinks = hdfs-Cluster1-sink1 avro-forward-sink2
+agent_foo.channels = mem-channel-1 file-channel-2
+# flow #1 configuration
+agent_foo.sources.avro-AppSrv-source1.channels = mem-channel-1
+agent_foo.sinks.hdfs-Cluster1-sink1.channel = mem-channel-1
+# flow #2 configuration
+agent_foo.sources.exec-tail-source2.channels = file-channel-2
+agent_foo.sinks.avro-forward-sink2.channel = file-channel-2
+```
+
+> 这个示例的 agent 中包含两个数据流：
+>
+> 1. 从外部的 avro 客户端采集数据保存到 HDFS中
+> 2. 通过 tail source 采集数据，输送到 avro sink 中
+
