@@ -334,3 +334,123 @@ agent_foo.sinks.avro-forward-sink2.channel = file-channel-2
 > 1. 从外部的 avro 客户端采集数据保存到 HDFS中
 > 2. 通过 tail source 采集数据，输送到 avro sink 中
 
+## 配置由多个 agent 组成的数据流
+
+创建一个多层的数据流，第一级  agent 需要为 avro/thrift sink，并指向下一级 agent 的 avro/thrift source，这样第一级 agent 就可以发送数据到第二级。
+
+示例：
+web log agent
+
+```properties
+# list sources, sinks and channels in the agent
+agent_foo.sources = avro-AppSrv-source
+agent_foo.sinks = avro-forward-sink
+agent_foo.channels = file-channel
+# define the flow
+agent_foo.sources.avro-AppSrv-source.channels = file-channel
+agent_foo.sinks.avro-forward-sink.channel = file-channel
+# avro sink properties
+agent_foo.sinks.avro-forward-sink.type = avro
+agent_foo.sinks.avro-forward-sink.hostname = 10.1.1.100
+agent_foo.sinks.avro-forward-sink.port = 10000
+# configure other pieces
+#...
+```
+
+hdfs agnet
+
+```properties
+# list sources, sinks and channels in the agent
+agent_foo.sources = avro-collection-source
+agent_foo.sinks = hdfs-sink
+agent_foo.channels = mem-channel
+# define the flow
+agent_foo.sources.avro-collection-source.channels = mem-channel
+agent_foo.sinks.hdfs-sink.channel = mem-channel
+# avro source properties
+agent_foo.sources.avro-collection-source.type = avro
+agent_foo.sources.avro-collection-source.bind = 10.1.1.100
+agent_foo.sources.avro-collection-source.port = 10000
+# configure other pieces
+#...
+```
+
+> 连接 weblog agent 的 avro-sink 到 hdfs agent 的 avro-source，这样就可以把从外部服务获取到的数据存储到 HDfS
+
+## 发散数据流
+
+flume 支持从一个 source 发送数据到多个 channel，有两种模式：
+
+1. 复制，一个 event 被发送到多个 channel 中
+2. 分发，一个 event 只会被分发到指定的 channel 中
+
+发散数据流中，需要为一个 source 指定一个 channel 列表，并指定数据分发策略。可以通过 `selector` 属性来指定，这个属性值可以是 `replicating` 或 `multiplexing`，如果没有指定 `selector` 属性，默认为 `replicating`：
+
+```properties
+# List the sources, sinks and channels for the agent
+<Agent>.sources = <Source1>
+<Agent>.sinks = <Sink1> <Sink2>
+<Agent>.channels = <Channel1> <Channel2>
+# set list of channels for source (separated by space)
+<Agent>.sources.<Source1>.channels = <Channel1> <Channel2>
+# set channel for sinks
+<Agent>.sinks.<Sink1>.channel = <Channel1>
+<Agent>.sinks.<Sink2>.channel = <Channel2>
+<Agent>.sources.<Source1>.selector.type = replicating
+```
+
+`selector` 有一系列的配置属性，其中可以通过设置 mapping 来指定 channel。`selector` 会查看每个 event 指定的 header, event 会被发送到所有与这个 header 值匹配的 channel 中，如果没有匹配的，event 会被发送到默认的 channel 中：
+
+```properties
+# Mapping for multiplexing selector
+<Agent>.sources.<Source1>.selector.type = multiplexing
+<Agent>.sources.<Source1>.selector.header = <someHeader>
+<Agent>.sources.<Source1>.selector.mapping.<Value1> = <Channel1>
+<Agent>.sources.<Source1>.selector.mapping.<Value2> = <Channel1> <Channel2>
+<Agent>.sources.<Source1>.selector.mapping.<Value3> = <Channel2>
+#...
+<Agent>.sources.<Source1>.selector.default = <Channel2>
+```
+
+示例：
+
+```properties
+# list the sources, sinks and channels in the agent
+agent_foo.sources = avro-AppSrv-source1
+agent_foo.sinks = hdfs-Cluster1-sink1 avro-forward-sink2
+agent_foo.channels = mem-channel-1 file-channel-2
+# set channels for source
+agent_foo.sources.avro-AppSrv-source1.channels = mem-channel-1 file-channel-2
+# set channel for sinksagent_foo.sinks.hdfs-Cluster1-sink1.channel = mem-channel-1
+agent_foo.sinks.avro-forward-sink2.channel = file-channel-2
+# channel selector configuration
+agent_foo.sources.avro-AppSrv-source1.selector.type = multiplexing
+agent_foo.sources.avro-AppSrv-source1.selector.header = State
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.CA = mem-channel-1
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.AZ = file-channel-2
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.NY = mem-channel-1 file-channel-2
+agent_foo.sources.avro-AppSrv-source1.selector.default = mem-channel-1
+```
+
+> selector 查看名为 "State" 的 header, 如果 header 的值为 "CA", event 被发送到 mem-channel-1 中；如果 header 的值为 "AZ", event 被发送到 file-channel-2 中；如果 header 的值为 "NY", event 被发送到两个 channel 中；如果 header 没有设置值，event 会被发送到 "mem-channel-1" 中。
+
+`selector` 支持 optional channel，给 optional 指定一个 header, 'optional' 参数的使用方法如下：
+
+```properties
+# channel selector configuration
+agent_foo.sources.avro-AppSrv-source1.selector.type = multiplexing
+agent_foo.sources.avro-AppSrv-source1.selector.header = State
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.CA = mem-channel-1
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.AZ = file-channel-2
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.NY = mem-channel-1 file-channel-2
+agent_foo.sources.avro-AppSrv-source1.selector.optional.CA = mem-channel-1 file-channel-2
+agent_foo.sources.avro-AppSrv-source1.selector.mapping.AZ = file-channel-2
+agent_foo.sources.avro-AppSrv-source1.selector.default = mem-channel-1
+```
+
+selector 首先会尝试把 event 写入 required channel, 如果其中有一个 channel 获取数据失败，会触发事务回滚，然后会重新尝试往所有的 channel 中发送数据。一旦所有的 required channel 都获取到了数据，selector 会尝试把数据发送到 optional channel，只要任何一个 optional channel 获取数据失败，那么这个 event 会被忽略并且不会重试。
+
+如果在 optional channel 和 required channel 中有重复的，那么这个 channel 会被认定为 required, 并且如果一个 channel 失败，会导致整个 required channel 重试。在上面那个示例中，"CA" 对应的 mem-channel-1 虽然既被标记为 required channel 也被标记为 optional channel，但是它会被认为是一个 required channel，往这个 channel 中写入数据失败会导致配置在这个 selector 中的所有 channel 重试。
+
+如果一个 event 的 header 没有对应任何 required channel，event 会被写入 default channel, 并且尝试写入那个 event 对应的 optional channel 中。如果没有指定 required channel 而指定了 optional channel, event 仍然会写入 default channel。如果没有指定 required channel 也没有指定 default channel, 只指定了 optional channel，那所有的发送失败的 event 都不会重试。
+
