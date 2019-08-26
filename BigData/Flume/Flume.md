@@ -454,3 +454,129 @@ selector 首先会尝试把 event 写入 required channel, 如果其中有一个
 
 如果一个 event 的 header 没有对应任何 required channel，event 会被写入 default channel, 并且尝试写入那个 event 对应的 optional channel 中。如果没有指定 required channel 而指定了 optional channel, event 仍然会写入 default channel。如果没有指定 required channel 也没有指定 default channel, 只指定了 optional channel，那所有的发送失败的 event 都不会重试。
 
+## SSL/TLS
+
+有一些 flume 组件支持 SSL/TLS 协议，为了跟其他系统安全地发送数据。
+
+| Component                   | SSL server or client |
+| --------------------------- | -------------------- |
+| Avro Source                 | server               |
+| Avro Sink                   | client               |
+| Thrift Source               | server               |
+| Thrift Sink                 | client               |
+| Kafka Source                | client               |
+| Kafka Channel               | client               |
+| Kafka Sink                  | client               |
+| HTTP Sink                   | server               |
+| JMS Source                  | client               |
+| Syslog TCP Source           | server               |
+| Multiport Syslog TCP Source | server               |
+
+SSL 组件有几个配置项来设置 SSL，不如 SSL flag, 密钥库等。
+
+SSL 的配置是组件级别的，也就是所一些组件可以配置使用 SSL，而其他组件可以配置不使用 SSL。
+
+密钥库可以在组件级别配置，也可以全局配置。
+
+配置组件级别的密钥库，通过在 agent 的配置文件中给相应的组件添加配置参数。这种方式的有点是可以给不同的组件使用不同的密钥库。缺点是每个组件都要配置一下密钥库。组件级别的密钥库是可选的，但是一旦配置了，那么它就有更高的优先级。
+
+配置全局的密钥库，可以值配置一次密钥库，然后给所有的组件使用。全局的可以通过系统数据或环境变量来配置：
+
+| System property                  | Environment variable           | Description                                                  |
+| -------------------------------- | ------------------------------ | ------------------------------------------------------------ |
+| javax.net.ssl.keyStore           | FLUME_SSL_KEYSTORE_PATH        | Keystore location                                            |
+| javax.net.ssl.keyStorePassword   | FLUME_SSL_KEYSTORE_PASSWORD    | Keystore password                                            |
+| javax.net.ssl.keyStoreType       | FLUME_SSL_KEYSTORE_TYPE        | Keystore type(by default JKS)                                |
+| javax.net.ssl.trustStore         | FLUME_SSL_TRUSTORE_PATH        | Truststore location                                          |
+| javax.net.ssl.trustStorePassword | FLUME_SSL_TRUSTORE_PASSWORD    | Truststore password                                          |
+| javax.net.ssl.trustStoreType     | FLUME_SSL_TRUSTORE_TYPE        | Trustore type(by default JKS)                                |
+| flume.ssl.include.protocols      | FLUME_SSL_INCLUDE_PROTOCOLS    | Protocols to include when calculating enabled protocols. A comma separated list. Excluded protocols will be excluded from this list if provided. |
+| flume.ssl.exclude.protocols      | FLUME_SSL_EXCLUDE_PROTOCOLS    | Protocols to exclude when calculating enabled protocols.A comma separated list. |
+| flume.ssl.include.cipherSuites   | FLUME_SSL_INCLUDE_CIPHERSUITES | Cipher suites to include when calculating enabled cipher suites. A comman separated list. Excluded cipher suites will be excluded from this list if provided. |
+| flume.ssl.exclude.cipherSuites   | FLUME_SSL_EXCLUDE_CIPHERSUITS  | Cipher suites to exclude when calculating enabled cipher suites.A comma separated list. |
+
+SSL 属性既可以通过命令行设置，也可以在 conf/flume-env.sh 文件中通过 JAVA_OPTS 环境变量设置。(通过命令行设置是不太好的，因为命令中包含密码，会被保存在历史命令记录中)
+
+```
+export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.keyStore=/path/to/keystore.jks"
+export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.keyStorePassword=password"
+```
+
+Flume 使用系统属性定义 JSSE (Java Secure Socket Extension), 这是一个标准的方法来设置 SSL。另一方面，在系统属性中设置密码意味着密码在进程列表中会被看到。在这个示例中，Flume 从对应的环境变量中初始化 JSSE 系统属性。
+
+SSL 环境变量也可以设置 shell 脚本 conf/flume-env.sh 中。
+
+```
+export FLUME_SSL_KEYSTORE_PATH=/path/to/keystore.jks
+export FLUME_SSL_KEYSTORE_PASSWORD=password
+```
+
+**注意：**
+
+- SSL 在组件级别设置后，全局配置是无效的
+- 如果在多个级别都设置了 SSL，优先级是这样的：
+  1. agent 配置文件中的组件配置
+  2. 系统属性
+  3. 环境变量
+- 如果开启 SSL 配置，但是没有通过任何方式设置 SSL 参数，那么会：
+  - 在 keystore 中：configuration error
+  - 在 truststores：the default trustore will be used(jssecacerts / cacerts in Oracle JDK)
+
+## source 和 sink 的 batch size ，channel 的 transaction capacities
+
+Source 和 sink 有一个 batch size 参数决定一批数据中最大 event 数。同时 channel 事务中有一个上限数叫 transaction capacity。Batch size 必须必 transaction capacities 小。在每次配置文件被读取的时候会检测配置是否正确。
+
+# Flume Sources
+
+## Avro Source
+
+监听 Avro 端口，并从外部的 Avro 客户端接收 event。如果在上一级 agent使用 Avro Sink，就形成了多层级拓扑结构。
+
+| Property Name         | Default | Description                                                  |
+| --------------------- | ------- | ------------------------------------------------------------ |
+| channels              |         |                                                              |
+| type                  | -       | 组件类型，avro                                               |
+| bind                  | -       | 监听机器的 hostname 或 IP                                    |
+| port                  | -       | 监听的端口                                                   |
+| threads               | -       | 最大线程数                                                   |
+| selector.type         |         |                                                              |
+| selector.*            |         |                                                              |
+| interceptors          | -       | 通过空格分隔的拦截器列表                                     |
+| interceptors.*        |         |                                                              |
+| compression-type      | none    | 属性值可以是 "none" 或 "deflate", 压缩类型必须跟 AvroSource 匹配 |
+| ssl                   | false   | 这只为 true 将会开启 SSL 加密。如果开启 SSL，那么必须要指定 "keystore" 和 "keystore-password"，既可以通过组件级别的参数指定，也可以通过全局参数指定 |
+| keystore              | -       | 这里指定 Java keystore 文件的路径。如果这里没有指定，会使用全局的 keystore(如果全局配置也没有指定，会 configuration error) |
+| keystore-password     | -       | Java keystore 的密码。如果这里没有指定，会使用全局配置的 keystore password(如果全局配置也没有指定，会 configuratin error) |
+| keystore-type         | JKS     | Java keystore 的类型，可以是 "JKS" 或 "PKCS12"。如果没有指定，会使用全局的配置(如果全局配置也没有指定，那使用默认配置 JKS) |
+| exclude-protocols     | SSLv3   | 排除在外的 SSL/TLS 协议列表(通过空格分隔)，除了指定的协议外，SSLv3 会一直被排除在外 |
+| include-protocols     | -       | 包含的 SSL/TLS 协议列表(通过空格分隔)，指定可用协议。如果为空，那么会包含所有可用的协议 |
+| exclude-cipher-suites | -       | 排除的加密套件列表(通过空格分隔)                             |
+| include-cipher-suites | -       | 包含的加密套件列表(通过空格分隔)。                           |
+| ipFilter              | false   | 设置为 true, 开启 ip 过滤                                    |
+| ipFilterRules         | -       | 设置 ip 过滤的规则                                           |
+
+示例：
+
+```properties
+a1.sources = r1
+a1.channels = c1
+a1.sources.r1.type = avro
+a1.sources.r1.channels = c1
+a1.sources.r1.bind = 0.0.0.0
+a1.sources.r1.port = 4141
+```
+
+ipFilterRules 示例：
+
+ipFilterRules 使用逗号进行分隔，格式如下：
+
+```
+<'allow' or 'deny'>:<'ip' or 'name' for computer name>:<pattern>
+
+示例：
+ipFilterRules=allow:ip:127*,allow:name:name:localhost,deny:ip:*
+```
+
+> 配置 "allow:name:localhost,deny:ip:" 会允许本地的客户端，禁止其它 ip 的客户端
+>
+> 配置 "deny:name:localhost,allow:ip:" 会禁止本地的客户端而允许其它 ip 的客户端 
