@@ -157,4 +157,57 @@ hadoop [--config confdir] [--loglevel loglevel] [COMMAND] [GENERIC_OPTIONS] [COM
 
   > subcommand:
   >
-  > - create keyname [-cipher cipher] [-size size] [-description description] [-attrattribute=value] [-provider provider] [-help]，
+  > - create keyname [-cipher cipher] [-size size] [-description description] [-attrattribute=value] [-provider provider] [-help]，给 -*provider* 参数指定的 -*keyname*参数指定的创建一个新的 key。可以通过 -*cipher* 参数指定加密算法，默认的加密算法是 "AES/CTR/NoPadding"。默认的 keysize 是 128，可以通过 -*size* 参数指定 key 长度。attribute=value 格式的属性可以通过 -*attr*- 参数指定。
+  > - roll keyname [-provider provider] [-help]，给 -*provider* 参数指定的 key 创建一个新的版本
+  > - delete keyame [-provider provider] [-f] [-help]，删除 key 的所有版本，如果不适用 -*f* 这个命令需要验证
+  > - list [-provider provider] [-metadata] [-help]， 
+  > - -help
+  
+- trace
+
+- version
+
+  命令格式：
+
+  ```
+  hadoop version
+  ```
+
+  输出 hadoop 的版本
+
+- CLASSNAME
+
+  命令格式：
+
+  ```shell
+  hadoop CLASSNAME
+  ```
+
+  运行名为 CLASSNAME 的 class
+
+### 管理员命令
+
+hadoop 集群管理员适用的命令
+
+- daemonlog
+
+  命令格式：
+
+  ```shell
+  hadoop daemonlog -getlevel <host:httpport> <classname>
+  hadoop daemonlog -setlevel <host:httpport> <classname> <level>
+  ```
+
+  > -getlevel host:httpport classname，输出指定运行在 *host:httpport* 后台程序的日志级别，这个命令实际上是连接到 *http://\<host:httpport>/logLevel?log=<classname\>*
+  >
+  > -setlevel host:httpport classname level，设置运行在 *http:httpport* 后台程序的日志级别，这个命令实际上是连接到 *http://\<host:httpport>/logLevel?log=\<classname>&level=\<level>
+
+  获取/设置后台程序指定 classname 的日志级别
+
+  示例：
+
+  ```shell
+  $ bin/hadoop daemonlog -setlevel 127.0.0.1:50070 org.apache.hadoop.hdfs.server.namenode.NameNode DEBUG
+  ```
+
+  
