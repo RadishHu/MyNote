@@ -210,4 +210,72 @@ hadoop 集群管理员适用的命令
   $ bin/hadoop daemonlog -setlevel 127.0.0.1:50070 org.apache.hadoop.hdfs.server.namenode.NameNode DEBUG
   ```
 
-  
+
+## FileSystem Shell
+
+### 概述
+
+文件系统(FS) shell 包括各种类似于 shell 命令，可以直接操作 Hadoop 分布式文件系统(HDFS) 和其它 Hadoop 支持的文件系统，比如：本地文件系统，HFTP 文件系统，S3 文件系统。FS shell 调用方式如下：
+
+```shell
+bin/hadoop fs <args>
+```
+
+所有的 FS shell 命令都以路径 URI 作为参数，URI 的格式为 *scheme://authority/path*，HDFS 的 scheme 是 `hdfs`，本地文件系统的 scheme 是 `file`。scheme 和 authority 都是可选的，如果没有指定 scheme，会使用配置文件中指定的。HDFS 中的文件或目录 /parent/child 可以指定为 hdfs://namenodehost/parent/child 或 /parent/child(配置文件中指定的是 hdfs://namenodehost)。
+
+大多数 FS shell 命令跟 Unix 命令类似。如果使用的 HDFS，那么 hdfs 和 dfs 的意思是相近的。
+
+### 常用命令
+
+- appendToFile
+
+  命令格式：
+
+  ```sehll
+  hadoop fs -appendToFile <localsrc> ... <dst>
+  ```
+
+  从本地文件系统追加单个 src 或多个 srcs 到目标文件系统。也可以从标准输入读取数据追加到目标文件系统。示例：
+
+  - hadoop fs -appendToFile localfile /user/hadoop/hadoopfile
+  - hadoop fs -appendToFile localfile1 localfile2 /user/hadoop/hadoopfile
+  - hadoop fs -appendToFile localfile hdfs://nn.example.com/hadoop/hadoopfile
+  - hadoop fs -appendToFile -hdfs://nn.example.com/hadoop/hadoop/hadoopfile Reads the input from stdin
+
+  返回 0 表示成功，返回 1 表示失败。
+
+- cat
+
+  命令格式：
+
+  ```shell
+  hadoop fs -cat [ignorCrc] URI [URI ...]
+  ```
+
+  复制指定的文件到标准输出。
+
+  选项：
+
+  - -ignorCrc，不使用校验和验证
+
+  示例：
+
+  - hadoop fs -cat hdfs://nn1.example.com/file1 hdfs://nn2.example.com/file2
+  - hadoop fs -cat file:///file3 /user/hadoop/file4
+
+  返回 0 表示成功，返回 1 表示失败。
+
+- checksum
+
+  命令格式：
+
+  ```shell
+  hadoop fs -checksum URI
+  ```
+
+  返回文件的校验和信息
+
+  示例：
+
+  - hadoop fs -checksum hdfs://nn1.example.com/file1
+  - hadoop fs -checksum file:///etc/hosts
