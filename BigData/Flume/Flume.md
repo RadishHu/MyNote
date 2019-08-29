@@ -551,7 +551,7 @@ Source 和 sink 有一个 batch size 参数决定一批数据中最大 event 数
 | exclude-protocols     | SSLv3   | 排除在外的 SSL/TLS 协议列表(通过空格分隔)，除了指定的协议外，SSLv3 会一直被排除在外 |
 | include-protocols     | -       | 包含的 SSL/TLS 协议列表(通过空格分隔)，指定可用协议。如果为空，那么会包含所有可用的协议 |
 | exclude-cipher-suites | -       | 排除的加密套件列表(通过空格分隔)                             |
-| include-cipher-suites | -       | 包含的加密套件列表(通过空格分隔)。                           |
+| include-cipher-suites | -       | 包含的加密套件列表(通过空格分隔)                             |
 | ipFilter              | false   | 设置为 true, 开启 ip 过滤                                    |
 | ipFilterRules         | -       | 设置 ip 过滤的规则                                           |
 
@@ -580,3 +580,82 @@ ipFilterRules=allow:ip:127*,allow:name:name:localhost,deny:ip:*
 > 配置 "allow:name:localhost,deny:ip:" 会允许本地的客户端，禁止其它 ip 的客户端
 >
 > 配置 "deny:name:localhost,allow:ip:" 会禁止本地的客户端而允许其它 ip 的客户端 
+
+## Thrift Source
+
+监听 Thrift 端口并接收来自 Thrift 客户端的数据，如果从另外一个 agent 的ThriftSink 获取数据，就创建了一个分层的拓扑结构。通过开启 kerberos 验证来开启 Thrift Source 的安全模式。agent-principal 和 agent-keytab 属性用来设置 Thrift Source 的 kerberos 认证。
+
+| PropertyName          | Default | Description                                                  |
+| --------------------- | ------- | ------------------------------------------------------------ |
+| channels              | -       |                                                              |
+| type                  | -       | 组件的类型, 需要设置为 *thrift*                              |
+| bind                  | -       | 监听的 ip 或 hostname                                        |
+| port                  | -       | 监听的端口                                                   |
+| threads               | -       | 最大运行的线程数                                             |
+| selector.type         |         |                                                              |
+| selector.*            |         |                                                              |
+| interceptors          | -       | 拦截器列表(通过空格分隔)                                     |
+| interceptors.*        |         |                                                              |
+| ssl                   | false   | 这只为 true 将会开启 SSL 加密。如果开启 SSL，那么必须要指定 "keystore" 和 "keystore-password"，既可以通过组件级别的参数指定，也可以通过全局参数指定 |
+| keystore              | -       | 这里指定 Java keystore 文件的路径。如果这里没有指定，会使用全局的 keystore(如果全局配置也没有指定，会 configuration error) |
+| keystore-password     | -       | Java keystore 的密码。如果这里没有指定，会使用全局配置的 keystore password(如果全局配置也没有指定，会 configuratin error) |
+| keystore-type         | JKS     | Java keystore 的类型，可以是 "JKS" 或 "PKCS12"。如果没有指定，会使用全局的配置(如果全局配置也没有指定，那使用默认配置 JKS) |
+| exclude-protocols     | SSLv3   | 排除在外的 SSL/TLS 协议列表(通过空格分隔)，除了指定的协议外，SSLv3 会一直被排除在外 |
+| include-protocols     | -       | 包含的 SSL/TLS 协议列表(通过空格分隔)，指定可用协议。如果为空，那么会包含所有可用的协议 |
+| exclude-cipher-suites | -       | 排除的加密套件列表(通过空格分隔)                             |
+| include-cipher-suites | -       | 包含的加密套件列表(通过空格分隔)                             |
+| kerberos              | false   | 设置为 *true* 开启 kerberos 认证。开启 kerberos 认证后，需要设置 *agent-principal* 和 *agent-keytab* 属性，并且只接受有 kerberos 认证的 thrift 客户端发送的数据 |
+| agent-principal       | -       | principal 用来 Thrift Source 进行认证                        |
+| agent-keytab          | -       |                                                              |
+
+示例：
+
+```properties
+a1.sources = r1
+a1.channels = c1
+a1.sources.r1.type = thrift
+a1.sources.r1.channel = c1
+a1.sources.r1.bind = 0.0.0.0
+a1.sources.r1.port = 4141
+```
+
+## Exec Source
+
+Exec Source 运行一个 Unix 命令，并获取命令的标准输出(错误输出会被忽略掉，除非 *logStdErr* 属性设置为 true)。如果程序一直存在，且 source 也一直存在，那么会产生更多的数据。也就是说像 `cat [named pipe]` 或 `tail -F [file]` 这样的命令会产生想要的结果，但是 `date `命令不会，前两个命令会产生一个数据流，而后一个命令只产生一条数据后就退出。
+
+| PropertyName    | Default     | Description                                                  |
+| --------------- | ----------- | ------------------------------------------------------------ |
+| channels        | -           |                                                              |
+| type            | -           | 组件的类型，这里需要设置为 `exec`                            |
+| command         | -           | 要执行的命令                                                 |
+| shell           | -           | 用来执行命令的 shell 类型，比如: /bing/sh -c。只有在执行的命令需要时才需要设置 |
+| restartThrottle | 10000       | 在重试之前等待的时间(单位: ms)                               |
+| restart         | false       | 如果执行命令挂掉后，是否重新执行                             |
+| logStdErr       | false       | 是否输出命令的错误日志                                       |
+| batchSize       | 20          | 一次读取并发送到 channel 的最大数据量                        |
+| batchTimeout    | 3000        | 缓数据没有达到指定的大小，往下一个阶段发送钱等待的时间(单位：ms) |
+| selector.type   | replicating | replicating / multiplexing                                   |
+| selector.*      | -           | 根据 selector.type 决定                                      |
+| interceptors    | -           | 拦截器列表(通过空格分隔)                                     |
+| interceptors.*  |             |                                                              |
+
+> ExecSource 和 其它异步 source 的问题是 source 不能保证如果数据往 channel 发送过程中失败的话，客户端是不知情的，这样数据就会丢失。最常见的是 `tail -F [file]` ，使用场景是一个应用的日志会输出到磁盘上的一个日志文件中，然后使用 flume tail 这个日志文件，每一行数据作为一个 event。有一个非常明显的问题就是，当 channel 满了后，不能再接收数据。flume 无法告诉应用程序再发送一次 channel 没有接收的数据。我们需要知道：在使用像 *ExecSource* 这样的单向的异步接口，应用程序无法保证数据被接收到。当使用这种 source 事，是完全无法保证数据被接收。如果需要保证高可靠性，可以考虑使用 *Spooling Directory Source*, *Taildir Source* 或直接通过 SDK 集成 Flume。
+
+示例：
+
+```properties
+a1.sources = r1
+a1.channels = c1
+a1.sources.r1.type = exec
+a1.sources.r1.command = tail -F /var/log/secure
+a1.sources.r1.channels = c1
+```
+
+*shell* 属性用来设置执行命令的 shell 类型(比如：Bash, Powershell)。*command* 属性值通过 shell 来执行。*shell* 属性常见的值有：’/bin/sh -c'，‘/bin/ksh -c'，’cmd /c'，'powershell -Command‘ 等。
+
+```properties
+a1.sources.tailsource-1.type = exec
+a1.sources.tailsource-1.shell = /bin/bash -c
+a1.sources.tailsource-1.command = for i in /path/*.txt; do cat $i; done
+```
+
