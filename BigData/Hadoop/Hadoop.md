@@ -279,3 +279,176 @@ bin/hadoop fs <args>
 
   - hadoop fs -checksum hdfs://nn1.example.com/file1
   - hadoop fs -checksum file:///etc/hosts
+  
+- chgrp
+
+  命令格式：
+
+  ```shell
+  hadoop fs -chgrp [-R] GROUP URI [URI ...]
+  ```
+
+  改变文件所属的组，用户必须是文件的拥有者或者是超级用户。
+
+  选项：
+
+  - -R，递归修改目录下文件的所属组
+
+- chmod
+
+  命令格式：
+
+  ```shell
+  hadoop fs -chmod [-R] <MODE[,MODE]... | OCTALMODE> URI [URI ...]
+  ```
+
+  修改文件的权限，用户必须是文件的所有者或者是超级用户。
+
+  选项：
+
+  - -R，递归修改目录下文件的权限
+
+- chown
+
+  命令格式：
+
+  ```shell
+  hadoop fs -chown [-R] [OWNER][:[GROUP]] URI [URI]
+  ```
+
+  修改文件的拥有者，用户必须是超级用户。
+
+  选项：
+
+  - -R，递归修改目录下文件的权限
+
+- copyFromLocal
+
+  命令格式：
+
+  ```shell
+  hadoop fs -copyFromLocal <localsrc> URI
+  ```
+
+  类似于 fs -put 命令，除了文件源是受限制的，必须是本地文件。
+
+  选项：
+
+  - -p，保留访问和修改时间、所有权和权限(如果权限可以通过文件系统传播的话)
+  - -f，如果文件已经存在的话，覆盖文件
+  - -l，强行限制文件的副本数为1
+  - -d，不创建临时文件，临时文件的后缀为 *.\_COPYING_*
+
+- copyToLocal
+
+  命令格式：
+
+  ```shell
+  hadoop fs -copyToLocal [-ignorecrc] [-crc] URI <localdst>
+  ```
+
+  类似于 get 命令，除了目标文件必须是本地文件
+
+- count
+
+  命令格式：
+
+  ```shell
+  hadoop fs -count [-q] [-h] [-v] <paths>
+  ```
+
+  统计目录和文件的个数和大小，该命令输出的列分别是：目录个数、文件个数、大小、路径名
+
+  加上 -q 参数后输出的列分别是：配额，剩余的配额，空间配额，剩余的空间配额，目录个数，文件个数，大小，路径名
+
+  -h 选项，以可读的格式显示大小
+
+  -v 选项，显示每列的表头信息
+
+  示例：
+
+  - hadoop fs -count hdfs://nn1.example.com/file hdfs://nn2.example.com/file2
+  - hadoop fs -count -q hdfs://nn1.example.com/file1
+  - hadoop fs -count -q -h hdfs://nn1.example.com/file1
+  - hdfs dfs -count -q -h -v hdfs://nn1.example.com/file1
+
+  返回 0 表示成功，返回 1 表示失败。
+
+- cp
+
+  命令格式：
+
+  ```shell
+  hadoop fs -cp [-f] [-p | -p[topax]] URI [URI ...] <dest>
+  ```
+
+  从指定的源赋值文件到目的地。这个命令可以从多个数据源复制数据，这样做的话目的地必须是个目录。
+
+  选项：
+
+  - -f，如果目标文件存在，则覆盖目标文件
+  - -p，保留文件属性(时间戳，所属权，权限，ACL，XAttr)，如果 -p 没有指定其他的参数，那么会保留文件的时间戳、所属权和权限。如果使用 -pa，也还保留权限，因为 ACL 是一组超级权限
+
+  示例：
+
+  - hadoop fs -cp /user/haoop/file1 /user/haoop/file2
+  - hadoop fs -cp /user/hadoop/file1 /user/hadoop/file2 /user/hadoop/dir
+
+  返回 0 表示成功，返回 1 表示失败。
+
+- createSnapshot
+
+- deleteSnapshot
+
+- df
+
+  命令格式：
+
+  ```shell
+  hadoop fs -df [-h] URI [URI ...]
+  ```
+
+  显示可用的空间
+
+  选项：
+
+  -h，以可阅读的格式显示大小
+
+  示例：
+
+  hadoop dfs -df /user/hadoop/dir1
+
+- du
+
+  命令格式：
+
+  ```shell
+  hadoop fs -du [-s] [-h] URI [URI ... ]
+  ```
+
+  如果指定的是目录，展示目录中文件和目录的大小；如果指定的是文件，展示文件的大小
+
+  选项：
+
+  - -s，展示聚合后的文件大小，而不是单个文件
+  - -h，以可读的格式显示大小
+
+- dus
+
+  命令格式：
+
+  ```shell
+  hadoop fs -dus <args>
+  ```
+
+  显示聚合后的文件大小，**这个命令已经启动，可以使用 fs -du -s**
+
+- expunge
+
+  命令格式：
+
+  ```shell
+  hadoop fs -expunge
+  ```
+
+  永久删除检查点比 trash 目录设置的阈值更旧的文件，并创建一个新的检查点。当创建新的检查点，trash 目录中最近删除的文件且在检查点以下的会被移除。
