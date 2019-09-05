@@ -532,28 +532,30 @@ Source 和 sink 有一个 batch size 参数决定一批数据中最大 event 数
 
 监听 Avro 端口，并从外部的 Avro 客户端接收 event。如果在上一级 agent使用 Avro Sink，就形成了多层级拓扑结构。
 
-| Property Name         | Default | Description                                                  |
-| --------------------- | ------- | ------------------------------------------------------------ |
-| channels              |         |                                                              |
-| type                  | -       | 组件类型，avro                                               |
-| bind                  | -       | 监听机器的 hostname 或 IP                                    |
-| port                  | -       | 监听的端口                                                   |
-| threads               | -       | 最大线程数                                                   |
-| selector.type         |         |                                                              |
-| selector.*            |         |                                                              |
-| interceptors          | -       | 通过空格分隔的拦截器列表                                     |
-| interceptors.*        |         |                                                              |
-| compression-type      | none    | 属性值可以是 "none" 或 "deflate", 压缩类型必须跟 AvroSource 匹配 |
-| ssl                   | false   | 这只为 true 将会开启 SSL 加密。如果开启 SSL，那么必须要指定 "keystore" 和 "keystore-password"，既可以通过组件级别的参数指定，也可以通过全局参数指定 |
-| keystore              | -       | 这里指定 Java keystore 文件的路径。如果这里没有指定，会使用全局的 keystore(如果全局配置也没有指定，会 configuration error) |
-| keystore-password     | -       | Java keystore 的密码。如果这里没有指定，会使用全局配置的 keystore password(如果全局配置也没有指定，会 configuratin error) |
-| keystore-type         | JKS     | Java keystore 的类型，可以是 "JKS" 或 "PKCS12"。如果没有指定，会使用全局的配置(如果全局配置也没有指定，那使用默认配置 JKS) |
-| exclude-protocols     | SSLv3   | 排除在外的 SSL/TLS 协议列表(通过空格分隔)，除了指定的协议外，SSLv3 会一直被排除在外 |
-| include-protocols     | -       | 包含的 SSL/TLS 协议列表(通过空格分隔)，指定可用协议。如果为空，那么会包含所有可用的协议 |
-| exclude-cipher-suites | -       | 排除的加密套件列表(通过空格分隔)                             |
-| include-cipher-suites | -       | 包含的加密套件列表(通过空格分隔)                             |
-| ipFilter              | false   | 设置为 true, 开启 ip 过滤                                    |
-| ipFilterRules         | -       | 设置 ip 过滤的规则                                           |
+Avro Source 的属性(黑体字表示必须的属性)：
+
+| **Property Name **        | **Default** | **Description**                                              |
+| --------------------- | ----------- | ------------------------------------------------------------ |
+| **channels**          |             |                                                              |
+| **type**              | -           | 组件类型，avro                                               |
+| **bind**              | -           | 监听机器的 hostname 或 IP                                    |
+| **port**              | -           | 监听的端口                                                   |
+| threads               | -           | 最大线程数                                                   |
+| selector.type         |             |                                                              |
+| selector.*            |             |                                                              |
+| interceptors          | -           | 通过空格分隔的拦截器列表                                     |
+| interceptors.*        |             |                                                              |
+| compression-type      | none        | 属性值可以是 "none" 或 "deflate", 压缩类型必须跟 AvroSource 匹配 |
+| ssl                   | false       | 这只为 true 将会开启 SSL 加密。如果开启 SSL，那么必须要指定 "keystore" 和 "keystore-password"，既可以通过组件级别的参数指定，也可以通过全局参数指定 |
+| keystore              | -           | 这里指定 Java keystore 文件的路径。如果这里没有指定，会使用全局的 keystore(如果全局配置也没有指定，会 configuration error) |
+| keystore-password     | -           | Java keystore 的密码。如果这里没有指定，会使用全局配置的 keystore password(如果全局配置也没有指定，会 configuratin error) |
+| keystore-type         | JKS         | Java keystore 的类型，可以是 "JKS" 或 "PKCS12"。如果没有指定，会使用全局的配置(如果全局配置也没有指定，那使用默认配置 JKS) |
+| exclude-protocols     | SSLv3       | 排除在外的 SSL/TLS 协议列表(通过空格分隔)，除了指定的协议外，SSLv3 会一直被排除在外 |
+| include-protocols     | -           | 包含的 SSL/TLS 协议列表(通过空格分隔)，指定可用协议。如果为空，那么会包含所有可用的协议 |
+| exclude-cipher-suites | -           | 排除的加密套件列表(通过空格分隔)                             |
+| include-cipher-suites | -           | 包含的加密套件列表(通过空格分隔)                             |
+| ipFilter              | false       | 设置为 true, 开启 ip 过滤                                    |
+| ipFilterRules         | -           | 设置 ip 过滤的规则                                           |
 
 示例：
 
@@ -585,12 +587,14 @@ ipFilterRules=allow:ip:127*,allow:name:name:localhost,deny:ip:*
 
 监听 Thrift 端口并接收来自 Thrift 客户端的数据，如果从另外一个 agent 的ThriftSink 获取数据，就创建了一个分层的拓扑结构。通过开启 kerberos 验证来开启 Thrift Source 的安全模式。agent-principal 和 agent-keytab 属性用来设置 Thrift Source 的 kerberos 认证。
 
+Thrift Source 的属性(黑体字表示必须的属性)：
+
 | PropertyName          | Default | Description                                                  |
 | --------------------- | ------- | ------------------------------------------------------------ |
-| channels              | -       |                                                              |
-| type                  | -       | 组件的类型, 需要设置为 *thrift*                              |
-| bind                  | -       | 监听的 ip 或 hostname                                        |
-| port                  | -       | 监听的端口                                                   |
+| **channels**          | -       |                                                              |
+| **type**              | -       | 组件的类型, 需要设置为 *thrift*                              |
+| **bind**              | -       | 监听的 ip 或 hostname                                        |
+| **port**              | -       | 监听的端口                                                   |
 | threads               | -       | 最大运行的线程数                                             |
 | selector.type         |         |                                                              |
 | selector.*            |         |                                                              |
@@ -623,11 +627,13 @@ a1.sources.r1.port = 4141
 
 Exec Source 运行一个 Unix 命令，并获取命令的标准输出(错误输出会被忽略掉，除非 *logStdErr* 属性设置为 true)。如果程序一直存在，且 source 也一直存在，那么会产生更多的数据。也就是说像 `cat [named pipe]` 或 `tail -F [file]` 这样的命令会产生想要的结果，但是 `date `命令不会，前两个命令会产生一个数据流，而后一个命令只产生一条数据后就退出。
 
+Exec Source 的属性(黑体字表示必须的属性)：
+
 | PropertyName    | Default     | Description                                                  |
 | --------------- | ----------- | ------------------------------------------------------------ |
-| channels        | -           |                                                              |
-| type            | -           | 组件的类型，这里需要设置为 `exec`                            |
-| command         | -           | 要执行的命令                                                 |
+| **channels**    | -           |                                                              |
+| **type**        | -           | 组件的类型，这里需要设置为 `exec`                            |
+| **command**     | -           | 要执行的命令                                                 |
 | shell           | -           | 用来执行命令的 shell 类型，比如: /bing/sh -c。只有在执行的命令需要时才需要设置 |
 | restartThrottle | 10000       | 在重试之前等待的时间(单位: ms)                               |
 | restart         | false       | 如果执行命令挂掉后，是否重新执行                             |
@@ -657,5 +663,85 @@ a1.sources.r1.channels = c1
 a1.sources.tailsource-1.type = exec
 a1.sources.tailsource-1.shell = /bin/bash -c
 a1.sources.tailsource-1.command = for i in /path/*.txt; do cat $i; done
+```
+
+## JMS Source
+
+JMS Source 从 类似于队列或主题这样的 JMS 目标中获取数据。作为一个 JMS 应用应该可以跟任何 JMS 生产者一块工作，但是这里只测试跟 ActiveMQ 一块工作。JMS Source 提供配置 batch size, message selector, user/pass以及 message 转换为 event。供应商提供的 JMS jar 包应该被包含在 Flume classpath 中，可以通过 plugin.d 目录，也可以在命令行添加 -classpath 参数，或者通过 flume-env.sh 文件中的 *FLUME_CLASSPATH* 变量来进行配置。
+
+JMS Source 的属性(黑体字表示必须的属性)：
+
+| Property Name             | Default | Descriptioni                                                 |
+| ------------------------- | ------- | ------------------------------------------------------------ |
+| **channels**              | -       |                                                              |
+| **type**                  | -       | 组件的类型，这里应该是 `jms`                                 |
+| **initialContextFactory** | -       | 初始化 Context Factory, 比如 org.apache.activemq.jndi.ActiveMQInitialContextFactory |
+| **connectionFactory**     | -       | connection factory 中的JNDI(命名目录服务)                    |
+| **providerURL**           | -       | JMS 提供者的 URL                                             |
+| **destinationName**       | -       | 目标名称                                                     |
+| **destinationType**       | -       | 目标类型(队列或主题)                                         |
+| messageSelector           | -       | 创建消费者时使用的消息选择器                                 |
+| userName                  | -       | 目标或提供者的用户名                                         |
+| passwordFile              | -       | 包含目标或提供者密码的文件                                   |
+| batchSize                 | 100     | 一批消费的消息数                                             |
+| converter.type            | DEFAULT | 用来把消息转换成 event 的类                                  |
+| converter.*               | -       | Converter 属性                                               |
+| converter.charset         | UTF-8   | 转换 JMS 文本消息为字节数组是使用的字符集                    |
+| createDurableSubscription | false   | 是否创建持久的订阅。持久的订阅只能用在目标类型为 topic。如果为 true, "clientId" 和 "durableSubscriptionName" 必须被指定 |
+| clientId                  | -       | JMS 标识符，需要设置 durable subscriptions                   |
+| durableSubscriptionName   | -       | 用来定义 durablesubscription 的名字，需要设置 durable subscriptions |
+
+## Spooling Directory Source
+
+这个 source 可以获取指定目录下文件中的数据，source 会监控指定的目录，当有新文件产生的时候，会把文件内容解析为 event。event 解析逻辑是插件化的。当一个文件被完全采集到 channel 后，默认情况下是重命名文件表明文件已经采集完成，也可以删除文件，或使用 trackerDir 来保持已经处理完文件的踪迹。
+
+不像 Exec source，这个 source 是可靠的，不会丢失数据，甚至 Flume 重启或被 kill 也不会丢失数据。但是放入监控目录下的文件必须要快速，且文件名是唯一的。Flume 会察觉这些问题：
+
+1. 文件放入监控目录后，还在继续写入内容，Flume 会打印错误到日志文件，并停止程序。
+2. 如果文件名是重复的，Flume 会打印错误到日志文件，并停止程序。
+
+为了避免这个问题，可以在文件移入监控目录是给文件名加一个唯一表示，比如时间戳。
+
+尽管这个 source 是保证可靠性的，但是可能会出现 event 重复，如果下游发生错误。这个跟其它 flume 组件提供的保证是一致的。
+
+| Property Name            | Default     | Description                                                  |
+| ------------------------ | ----------- | ------------------------------------------------------------ |
+| channels                 | -           |                                                              |
+| type                     | -           | 组件的类型，这里需要是 spooldir                              |
+| spoolDir                 | -           | 监控的目录                                                   |
+| fileSuffix               | .COMPLETED  | 采集完文件的后缀                                             |
+| deletePolicy             | never       | 什么时候删除文件：`never` 或 `immediate`                     |
+| fileHeader               | false       | 是否添加一个header，来存储文件名的绝对路径                   |
+| fileHeaderKey            | file        | 当需要添加文件名绝对路径到 event header 时，使用的 header key |
+| basenameHeader           | false       | 是否添加一个 header，来存储文件名                            |
+| basenameHeaderKey        | file        | 当需要添加文件名到 event header 时，使用的 header key        |
+| includePattern           | ^.*$        | 用来指明哪些文件需要包含在内的正则表达式。它可以配合 `ignorePattern` 来使用，如果一个文件既匹配 `ignorePattern` 也匹配 `includePattern`，那这个文件会被忽略 |
+| ignorePattern            | ^$          | 用来指明哪些文件被忽略                                       |
+| trackerDir               | .flumespool | 指定一个目录来存储已经处理完文件的元数据。如果这个路径不是绝对路径，那它会被理解为 spoolDir 的相对路径 |
+| trackingPolicy           | rename      | 指定已处理完的文件被追踪的策略，它可以是 `rename`，也可以是 `tracker_dir`。这个参数只有当 *deletePolicy* 是 *never* 时才起作用。`rename` - 文件被采集完后，根据 *fileSuffix* 参数来重命名文件。`tracker_dir` - 采集完的文件不会被重命名，但是一个空文件会在 trackerDir 中创建。这个新创建文件的名字通过 *fileSuffix* 来跟采集文件区别 |
+| consumeOrder             | oldest      | 监控目录下文件被采集的顺序，`oldest`, `youngest`, `random`。就 `oldest` 和 `youngest` 这两个来说，会通过文件最后修改的时间来比较文件。如果时间相同，文件名词典顺序最小的会先被采集。如果使用 `random` 会随机采集文件。当使用 `oldest` 或 `youngest`，这个目录会被扫描来采集 oldest/youngest 文件，当有大量的文件时，采集会比较慢。但是使用 `random` 会造成新文件在不断产生是，较老的文件被最后采集 |
+| pollDelay                | 500         | 轮询新文件的延迟(ms)                                         |
+| recursiveDirectorySearch | false       | 是否监控子目录中新文件的产生                                 |
+| maxBackoff               | 4000        | 如果 channel 满了的话，最大重试间隔。当 channel 抛出 ChannelException 时，source 每次会以指数方式增加时间，直到此参数指定的值 |
+| batchSize                | 100         | 每批发往 channel 数据量                                      |
+| inputCharset             | UTF-8       | 反序列化使用的字符集，将输入文件视为文本                     |
+| decodeErrorPolicy        | FAIL        | 当我们在输入文件中看到一个无法解码的字符该怎么处理。`FAIL`：抛出一个异常，并且解析文件失败。`REPLACE`把无法解码的字符替换为 "replacement character" 字符，典型的编码格斯 U+FFFD。`IGNORE`：忽略无法解码的字符 |
+| deserializer             | LINE        | 指定把文件转换为 event 的序列化工具。默认一行作为一个 event。指定的类必须实现 `EventDeserializer.Builder` |
+| deserializer.*           |             | 每个事件反序列化器不同                                       |
+| bufferMaxLines           | -           | 弃用                                                         |
+| bufferMaxLineLength      | 5000        | 弃用，被 `deserializer.maxLineLength` 参数替代，用来指定一行数据最大长度 |
+| selector.type            | replicating | replicating or multiplexing                                  |
+| selector.*               |             | 依赖 selector.type 的值                                      |
+| interceptors             | -           | 空格分隔的拦截器列表                                         |
+| interceptor.*            |             |                                                              |
+
+示例：
+
+```properties
+a1.sources = src-1
+a1.sources.src-1.type = spooldir
+a1.sources.src-1.channels = ch-1
+a1.sources.src-1.spoolDir = /var/log/apache/flumeSpool
+a1.sources.src-1.fileHeader = true
 ```
 
