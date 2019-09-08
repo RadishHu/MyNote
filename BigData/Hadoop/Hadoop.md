@@ -1022,11 +1022,11 @@ netmask = '255.255.255.0' # set netmask to what's being used in your environment
 
 for ip in sys.argv: # loop over list of datanode IP's
 	address = '{0}/{1}'.format(ip, netmask) # format address string so it looks like 'ip/netmask' to make netaddr work
-try:
-   network_address = netaddr.IPNetwork(address).network # calculate and print network address
-   print "/{0}".format(network_address)
-except:
-   print "/rack-unknown" # print catch-all value if unable to calculate network address
+	try:
+	   network_address = netaddr.IPNetwork(address).network # calculate and print network address
+	   print "/{0}".format(network_address)
+	except:
+	   print "/rack-unknown" # print catch-all value if unable to calculate network address
 ```
 
 > 这个脚本接受一个参数，输出一个值，接受的参数通常为 DataNode 机器的 ip 地址，输出的值通常为该 DataNode 机器所在的机架 id。
