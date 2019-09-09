@@ -155,9 +155,107 @@ distFile: org.apache.spark.rdd.RDD[String] = data.txt MapPartitionsRDD[10] at te
 
 ### 操作 RDD
 
-RDD 支持
+RDD 支持两种操作：
 
+- transformations, 从一个已经存在的数据集创建一个新的数据集。比如，*map* 是一个 transformation 操作，它对数据集中的每个元素进行操作生成一个新的 RDD。
+- actions, 对数据集进行计算后把结果返回到 driver 程序。比如，*reduce* 是一个 action 操作，它聚集数据集中的所有元素，并使用函数生成最终的结果到 driver 程序。
 
+所有的 transformations 操作都是懒惰的，它们不会立马去执行操作，只是记录作用在一些基础数据集上的 transformations 操作，只有当 action 操作需要返回结果到 driver 程序时才会执行 transformations 操作，这个机制保障了 Spark 更加高效的运行。
+
+默认情况下，当每次运行 action 操作时，transformation 操作的 RDD 都会被重新运行一次。你可以通过 *persist* 或 *cache* 方法持久化 RDD 到内存，这样下次可以更快的访问。
+
+#### Basic
+
+使用下面的示例，来阐明 RDD 基础：
+
+```scala
+val lines = sc.textFile("data.txt")
+val lineLengths = lines.map(s => s.length)
+val totalLength = lineLengths.reduce((a, b) => a + b)
+```
+
+第一行从外部文件定义了一个基础 RDD，这个数据集不会加载到内存中，*lines* 只是一个指向文件的指针。第二行定义的 *lineLengths* 是 *map* transformation 操作的结果，*lineLengths* 不会立马被计算。最后运行 *reduce* action 操作，这时 Spark 才会把计算拆分为 task ,运行在不同的机器上，每台机器都只会运行它们自己本分的 *map* 和本地 reduction，返回它们自己的结果到 driver 程序。
+
+如果想在之后再次使用 *lineLengths*，我们可以添加：
+
+```scala
+lineLengths.persist()
+```
+
+> 在 *reduce* 之前，会把 *lineLengths* 保存到内存中
+
+#### 传递函数给 Spark 
+
+Spark API 非常依赖把 driver 程序中的函数传递到正在运行的集群上，有两种推荐方法来实现这个：
+
+- 匿名函数表达式，这个可以通过非常简短的代码来实现
+
+- 在全局唯一的对象中定义方法，比如，你可以定义 *object MyFunctions* , 然后传递 *MyFunction.func1* ，如下：
+
+  ```scala
+  object MyFunctions {
+      def func1(s: String): String = {...}
+  }
+  
+  myRdd.map(MyFunction.func1)
+  ```
+
+  虽然可以将一个引用传递给类实例中的方法(而不是单例对象)，但这需要传递包含该对象的类和方法，比如：
+
+  ```scala
+  class MyClass {
+      def func1(s: String): String = { ... }
+      def doStuff(rdd: RDD[String]): RDD[String] = { rdd.map(func1)}
+  }
+  ```
+
+  如果我们在这里创建一个 *MyClass* 实例，并调用 *doStuff* 方法，那么 *map* 会调用 *MyClass* 实例的 *func1* 方法，因此需要将整个对象发送到集群，这个跟 *rdd.map(x => this.func1(x))* 类似。
+
+  同样，访问外部对象中的字段，会引用整个对象：
+
+  ```scala
+  class MyClass {
+      val field = "Hello"
+      def doStuff(rdd: RDD[String]): RDD[String] = { rdd.map(x => field + x) }
+  }
+  ```
+
+  这个类似于写 *rdd.map(x => this.field + x)*，会引用这个 *this*。为了避免这种问题，最简单的方法是复制 *field* 到本地变量，而不是在外部访问：
+
+  ```scala
+  def doStuff(rdd: RDD[String]): RDD[String] = {
+      val field_ = this.field
+      rdd.map(x => field_ + x)
+  }
+  ```
+
+#### 理解闭包
+
+Spark 的一个难点就是理解在集群中执行代码时变量和方法的作用范围和生命周期。RDD 的操作修改其作用范围外的变量，经常会引起混淆。下面的示例会使用 *foreach()* 来递增一个计数器，相似的问题也会发生在其他操作中。
+
+考虑下面 RDD 元素的总和，根据计算是否在同一 JVM 中进行，它的执行结果可能会不同。一个常见的示例是通过 *local* 模式(--master = local[n])运行 Spark 跟通过集群模式(通过 spark-submit 提交到 YARN)运行 Spark 进行对比：
+
+```scala
+var counter = 0
+var rdd = sc.parallelize(data)
+
+// 不要做这样的操作
+rdd.foreach(x => counter += x)
+
+println("Counter value: " + counter)
+```
+
+本地模式跟集群模式对比：
+
+上述代码可能不会按预期运行，为了执行 job，Spark 会将 RDD 操作到拆分为 task，每个 task 都会通过一个 executor 运行。在执行前，Spark 会计算任务的闭包，闭包是那些变量和方法，它们必须是可访问的，以便 executor 执行 RDD 的计算(在这个示例中是 *foreach()*)，这个闭包是序列化的并发送到每个 executor。
+
+发送给每个 executor 的闭包变量是副本，因此，当 ***counter*** 被 *foreach* 函数引用，它不再是 driver 节点的 ***counter***。在 driver 节点的内存中仍然存在一个 ***counter***，但是 executor 不能再访问它，executor 只能看到序列化闭包的副本。最后 ***counter*** 的值仍然是 0, 因为所有对 ***counter*** 的操作都引用了序列化闭包内的值。
+
+在本地模式下，*foreach* 函数在一些情况下会跟 driver 在同一个 JVM 中运行，并且会引用同一个 ***counter***，并可以更新它的值。
+
+在这些场景中，可以使用累加器(Accumulator)，累加器提供了一种机制，当程序在集群中的多个节点上运行时，确保变量安全更新。
+
+通常情况下，闭包 - 类似于循环或本地定义的方法，不应该用来改变全局状态。Spark 无法保证从闭包外引用的对象的修改行为。执行此操作的一些代码可以在 local 模式下运行，但是这只是偶然情况，并且这类代码在集群模式下不会按照预期运行。如果需要全局聚合，可以使用累加器。
 
 # 提交应用程序
 
@@ -302,3 +400,4 @@ Spark 可以自己运行，也可以通过几个现有的集群管理器运行�
 
 
 
+# 累加器
