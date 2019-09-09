@@ -1,10 +1,163 @@
 # Spark
 
-Apache Spark 是一个分布式计算系统，它支持多种 API：Java, Scala, Python 和 R，并且包含多种工具：通过 sql 处理结构化数据的 **Spark SQL**, 用于机器学习的 MLlib, 用于图计算的 GraphX 和 Spark Streaming。
+Apache Spark 是一个分布式计算系统，它支持多种 API：Java, Scala, Python 和 R，并且包含多种工具：通过 sql 处理结构化数据的 **Spark SQL**, 用于机器学习的 MLlib, 用于图计算的 GraphX 和 进行进行流计算的 Spark Streaming。
 
 Spark 运行在 Java8+, Python 2.7+/3.4+, R 3.1+，对于 Scala API，Spark 2.2.0 使用的是 Scala 2.11，我们可以使用 2.11.X。
 
 在 Spark 2.2.0 版本中，移除了对 java 7，python 2.6 和 Hadoop 小于 2.6.5 版本的支持。
+
+## 基础概念
+
+- Driver Program, 每个 Spark 程序都包含一个 driver 程序，用来运行用户定义的 `main` 函数，并执行各种并行的操作。
+
+- RDD, Resilient Distributed Dataset, 是一个带有分区的数据集合，分布在集群各个节点上，可以被并行操作。RDD 可以通过文件创建，也可以通过 driver 程序中 Scala 集合创建，还可以通过其它 RDD 转换而来。用户可以把 RDD 持久化到内存中，来重复使用。如果节点挂掉，RDD 可以自己恢复回来。
+
+  > 在 Spark 2.0 之前，Spark 主要编程接口是 RDD。在 Spark 2.0 之后，RDD 被 Dataset 代替，它像 RDD 一样是强类型，但是在计算引擎上有更丰富的优化。RDD 接口仍然支持，
+
+## Spark Shell
+
+Spark Shell 是学习 API 的一个便捷方式，并且是一个进行交互的分析数据的好方法，Spark Shell 中可以使用 Scala 或 Python API。可以通过下面的命令开启 Spark Shell:
+
+```shell
+# scala
+./bin/spark-shell
+
+# python
+./bin/pyspark
+
+# spark on yarn 
+./bin/spark-shell --master yarn --deploy-mode client
+```
+
+## Caching
+
+Spark 也支持把数据集缓存到集群的内存中，当数据被多次访问时，这个方法是非常有用的。
+
+```shell
+linesWithSpark.cache()
+```
+
+# RDD 编程
+
+## 概述
+
+每个 Spark 应用程序都包含一个 driver 程序，它用于运行用户的 main 函数和在集群上执行各种并行操作。Spark 的主要数据抽象是 RDD，它是一个分布在集群各节点的数据集合，可以被并行的操作。RDD 可以通过文件创建，也可以通过 driver 程序中的 Scala 集合创建，还可以通过其它 RDD 转化而来。用户可以把 RDD 持久化在内存中，这样就可以被重用。RDD 也可以在节点挂掉后恢复过来。
+
+## 连接 Spark
+
+Spark 2.3.0 是在 Scala 2.11 基础上构建的，通过 Scala 写 Spark 应用程序，需要使用 Scala 的兼容版本(比如 2.11.X)。
+
+写 Spark 程序，需要在 Maven 中引入一下依赖：
+
+```properties
+groupId = org.apache.spark
+artifactId = spark-core_2.11
+version = 2.3.0
+```
+
+如果要使用 HDFS 集群，需要配置 *hadoop-client* 依赖：
+
+```properties
+groupId = org.apache.hadoop
+artifactId = hadoop-client
+version = <your-hdfs-version>
+```
+
+需要在程序中引入一下 Spark 类：
+
+```scala
+import org.apache.spark.SparkContext
+import org.apache.spark.SparkConf
+```
+
+> 在 Spark 1.3.0 版本之前，需要使用 import org.apache.spark.SparkContext._ 
+
+## 初始化 Spark
+
+写 Spark 程序的第一件事是创建 `SparkContext` 对象，这个对象告诉 Spark 如何访问集群，在创建 `SparkContext` 前需要先创建一个 `SparkConf` 对象，它包含了应用程序的配置。
+
+每个 JVM 只能有一个 `SparkContext` 存活，因此在创建一个新的 `SparkContext` 前必须使用 `stop()` 来终止 `SparkContext`。
+
+```scala
+val conf = new SparkConf().setAppName(appName).setMaster(master)
+new SparkContext(conf)
+```
+
+> appName，是在集群 UI 界面显示的应用程序的名字
+>
+> master，Spark、Mesos、YARN 集群 URL 或 local。在实际工作中，一般不会在代码中指定 *master*, 而是在使用 *spark-submit* 命令式指定，但是在测试和开发时可以在程序中指定 *master* 为 "local"
+
+### 使用 Shell
+
+在 Spark Shell 中 SparkContext 已经被创建好了，可以通过变量 `sc` 来引用，自己创建的 SparkContext 是不管用 的。
+
+示例：
+
+指定 4 个核来运行 spark-shell
+
+```shell
+$ ./bin/spark-shell --master local[4]
+```
+
+添加 code.jar 到类路径下
+
+```shell
+$ ./bin/spark-shell --master local[4] --jars code.jar
+```
+
+使用 maven 坐标来添加依赖
+
+```shell
+$ ./bin/spark-shell --master local[4] --packages "org.example:example:0.1"
+```
+
+完整的选项说明，可以通过 *spark-shell --help* 获取
+
+## Resilient Distributed Datasets (RDDs)
+
+Spark 编程都是围绕着 RDD 这个概念来进行的，它是一个具有容错性的可以被并行操作的数据集合。有两种方式来创建 RDD：
+
+- 并行化 driver 程序中已经存在的集合
+- 或从外部的存储系统中创建
+
+### 并行化集合
+
+可以通过 SparkContext 的 `parallelize` 方法来并行化 driver 程序中的集合，这个集合会被复制成一个可以进行并行操作的分布式数据集。示例如下：
+
+```scala
+val data = Array(1, 2, 3, 4, 5)
+val distData = sc.parallelize(data)
+```
+
+有一个重要的参数是设置分区数，Spark 会给每个分区分配一个 task。通常情况下，也可以给每个 CPU 上分配 2-4 个分区。一般 Spark 会基于集群自动设置分区数，当然也可以通过 `parallelize` 手动设置(比如，sc.parallelize(data,10))。一些地方会使用切片(slices) 来表示分区(partition)。
+
+### 外部的数据集合
+
+Spark 可以从任何支持 Hadoop 的外部存储系统中创建 RDD (比如，本地文件系统、HDFS、HBase等).
+
+通过文本文件创建 RDD，可以使用 SparkContext 的 `textFile` 方法，这个方法需要提供文件的 URI，并把文件按行拆分成集合。示例：
+
+```scala
+scala> val distFile = sc.textFile("data.txt")
+distFile: org.apache.spark.rdd.RDD[String] = data.txt MapPartitionsRDD[10] at textFile at <console>:26
+```
+
+> - 如果使用的是本地文件系统，那 worker 节点的相同路径上访问该文件。同时也要可以复制文件到所有的工作节点或使用网络挂载共享文件系统。
+> - Spark 的所有读取文件方法，包括 *textFile* 方法，也支持读取目录、压缩文件和通配符。比如，我们可以使用 textFile("/my/directory"), textFile("/my/directory/*.txt"), textFile("/my/directory/\*.gz")
+> - *textFile* 方法可以在第二个选项添加一个参数来控制分区数。默认情况下，Spark 会为文件的每个 block 创建一个分区，我们可以设置比 block 数更大的值，但是不可以设置比 block 数更小的值。
+
+除了文本文件，Spark 的 Scala API 也支持一下数据格式：
+
+- *SparkContext.wholeTextFiles* 可以从包含多个小文件的目录中读取数，并把每个文件返回成一个 filename-content 对。这是跟 textFile 不同所在，textFile 会把文件的每一行作为一条记录。分区数由数据所在的位置决定，在一些情况下，会导致分区数过少。为了解决这种情况，*wholeTextFiles* 提供一个第二参数来控制分区的最小值。
+- *SparkContext.sequenceFile[K, V]* 方法可以读取序列化文件，k 和 v 分别是文件的 key 和 values。它们应该是 Hadoop Writable 接口的子类，比如 IntWritable 和 Text。Spark 允许你为一些常见的 Writable 指定本地类型，比如，*sequenceFile[Int, String] 会自动读取 IntWritables 和 Text。
+- 对于其它的 Hadoop 数据格式，可以使用 *SparkContext.hadoopRDD* 方法，这个方法需要传入 *jobConf* 和 input format 类、key 类和  value 类。也可以使用 *SparkContext.newAPIHadoopRDD* 来读取基于 MapReduce API (org.apache.hadoop.mapreduce) 的输入格式。
+- *RDD.saveObjectFile* 和 *SparkContext.objectFile* 支持以 Java 序列化对象的简单格式保存 RDD。这个没有 Avro 这样的序列化格式高效，这种格式提供了一个简单的方法来保存任何 RDD。
+
+### 操作 RDD
+
+RDD 支持
+
+
 
 # 提交应用程序
 
@@ -134,4 +287,18 @@ Spark 运行在 Java8+, Python 2.7+/3.4+, R 3.1+，对于 Scala API，Spark 2.2.
 
 jar 包和文件会被复制到 executor 节点的每个 SparkContext 的工作目录。随着时间推移，这个会占用许多空间，并且需要并清理。如果使用 YARN，会自动清理，如果使用的 Spark standalone，可以通过配置 *spark.worker.cleanup.appDataTtl* 属性来设置自动清理。
 
-用户可以通过 *--packages* 指定 Maven 坐标列表(以逗号分隔)来引入其他依赖。使用这个命令时，会处理所有的依赖项。
+用户可以通过 *--packages* 指定 Maven 坐标列表(以逗号分隔)来引入其他依赖。使用这个命令时，会处理所有的依赖项。其它的仓库(比如：SBT)，可以通过 *--responsitories* 参数来引入。
+
+对于 Python，*--py-files* 选项可以用来分配 .egg, .zip 和 .py 文件到 executor。
+
+# 集群模式
+
+Spark 可以自己运行，也可以通过几个现有的集群管理器运行。它目前支持一下几种调度模式:
+
+- Standalone
+- Apache Mesos
+- Hadoop Yarn
+- Kubernetes
+
+
+
