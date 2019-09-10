@@ -245,7 +245,7 @@ rdd.foreach(x => counter += x)
 println("Counter value: " + counter)
 ```
 
-本地模式跟集群模式对比：
+**本地模式跟集群模式对比：**
 
 上述代码可能不会按预期运行，为了执行 job，Spark 会将 RDD 操作到拆分为 task，每个 task 都会通过一个 executor 运行。在执行前，Spark 会计算任务的闭包，闭包是那些变量和方法，它们必须是可访问的，以便 executor 执行 RDD 的计算(在这个示例中是 *foreach()*)，这个闭包是序列化的并发送到每个 executor。
 
@@ -255,7 +255,54 @@ println("Counter value: " + counter)
 
 在这些场景中，可以使用累加器(Accumulator)，累加器提供了一种机制，当程序在集群中的多个节点上运行时，确保变量安全更新。
 
-通常情况下，闭包 - 类似于循环或本地定义的方法，不应该用来改变全局状态。Spark 无法保证从闭包外引用的对象的修改行为。执行此操作的一些代码可以在 local 模式下运行，但是这只是偶然情况，并且这类代码在集群模式下不会按照预期运行。如果需要全局聚合，可以使用累加器。
+通常情况下，闭包 - 类似于循环或本地定义的方法，不应该用来改变全局状态。Spark 无法保证从闭包外引用的对象的修改行为。执行此操作的一些代码可以在 local 模式下运行，但是这只是偶然情况，并且这类代码在集群模式下不会按照预期运行。如果需要全局聚合，可以使用累加器。这个操作可能会导致 driver 的内存不足，因为 *collect()* 会把整个 RDD 收集到一台机器上。如果你只是想打印 RDD 中的部分元素，可以使用 *take()* 方法：*rdd.take(100).foreach(println)*。
+
+**打印 RDD 中的元素：**
+
+另外一个常见的问题是试图通过 *rdd.foreach(println)* 或 *rdd.map(println)* 来打印 RDD 中的元素。在一台机器上运行，这个会像预期一样输出 RDD 中的元素。然而在集群模式下，executor 调用 *stdout*，输出会写入 executor而不是 driver，因此 driver 的 *stdout* 不会显示输出信息。要在 driver 上输出 RDD 的元素，可以使用 *collect()* 方法把 RDD 收集到 driver 节点：*rdd.collect().foreach(println)*。
+
+### 处理 K-V 对
+
+大多数 Spark 操作可以作用在包含任何类型对象的 RDD 上，有一些指定的操作只能作用在 k-v 形式的 RDD 上。最常见的是 "shuffle" 操作，比如，group 或 aggregate 元素通过 key。在 Scala 中，对于包含元组的 RDD，这些操作是自动可选的。
+
+下面的代码使用 *reduceByKey* 操作 k-v 对，统计文件中每行文本出现的次数：
+
+```scala
+val lines = sc.textFile("data.txt")
+val pairs = lines.map(s => (s, 1))
+val counts = pairs.reduceByKey((a, b) => a + b)
+```
+
+我们也可以使用 *counts.sortByKey()* 按字母顺序对 k-v 对进行排序。
+
+### Transformations
+
+下表中列出了一些常用的 transformations 操作：
+
+| Transformation                                           | Meaning                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| map(func)                                                | 使用 *func* 对源数据中的每个元素进行处理，返回一个新的 RDD   |
+| filter(func)                                             | 使用 *func* 对元数据中的每个元素进行处理，为 true 元素组成一个新的 RDD |
+| flatMap(func)                                            | 跟 map 类似，但是每个输入项可以映射到 0 个或多个输出项(因此 *func* 应该返回一个序列) |
+| mapPartitions(func)                                      | 跟 map 类似，但是在 RDD 的每个分区上单独运行，因此 *func* 必须是 Iterator\<T> => Iterator\<U> 类型的 |
+| mapPartitionsWithIndex(func)                             | 跟 mapPartitions 类似，但是给 *func* 提供一个整数代表分区的索引，因此 *func* 必须是 (Int, Iterator\<T> => Iterator<U\>) 类型的 |
+| sample(withReplacement, fraction, seed)                  | 使用改定的随机数生成 seed, 对数据中的一小部分进行取样        |
+| union(otherDataset)                                      | 合并源数据和参数中指定的数据集，返回一个新的数据集           |
+| intersection(otherDataset)                               | 取两数据集的交集，返回一个新的数据集                         |
+| distinct([numPartitions])                                | 对源数据集去重后，返回一个新的数据集                         |
+| groupByKey([numPartitions])                              | 当作用在 K-V 对数据集上时，返回一个 (K, Iterale<V\>) 格式的数据集。<br />如果是想通过 key 实现数据聚合(比如,sum 或 average)，使用 *reduceByKey* 或 *aggregateByKey* 会更好。<br />默认情况下，输出数据的并行度依赖于父 RDD 的分区数。可以通过 *numPartitions* 选项来设置 task 的个数。 |
+| reduceByKey(func,[numPartitions])                        | 当作用在 (K,V) 对上时，返回一个 (K,V) 对格式的数据集，其中 V 是使用 *func* 对数据进行聚合的结果。reduce task 数可以通过第二个选项进行设置。 |
+| aggregateByKey(zeroValue)(seqOp, combOp,[numPartitions]) | 当作用在 (K,V) 对上时，返回一个 (K,U)对格式的数据，使用给定的组合函数和中性的"0"值聚合每个键的值。允许跟输入类型不同的聚合类型，避免不必要的分配。reduce task 数可以通过第二个参数进行设置。 |
+| sortByKey([ascending], [numPartitoins])                  | 当作用在 (K,V) 对上时，K 用来排序，返回一个通过键进行升序或降序排列的 (K,V)对格式的数据，*ascending* 选项的类型为布尔类型。 |
+| join(otherDataset, [numPartitions])                      | 作用在 (K, V) 和 (K, W) 类型的数据上，返回 (K, (V, W)) 对格式的数据。可以通过 *leftOuterJoin*, *rightOuterJoin* 和 *fullOuterJoin* 进行外关联。 |
+| cogroup(otherDataset, [numPartitions])                   | 作用在 (K, V) 和 (K, W) 类型的数据上，返回(K, (Iterable<V\>, Iterable<W\>)) 类型的数据，这个操作也叫做 *groupWith*。 |
+| certesian(otherDataset)                                  | 笛卡尔积，作用在 T 和 U 类型的数据上，返回 (T, U) 类型的数据 |
+| pipe(command, [envVars])                                 | 通过 shell 命令处理每个分区中的数据，RDD 的元素作为命令的标准输入，并从标准输出中输出 String 类型的 RDD |
+| coalesce(numPartitions)                                  | 减少 RDD 的分区数到指定的数量，过滤大型数据集后，可以更有效地运行 |
+| repartition(numPartitions)                               | 随机地重组数据，产生更多或更少的分区，这个操作会通过网络重新 shuffle 所有的数据。 |
+| repartitionAndSortWithinPartition(partitioner)           | 根据给定的分割者对 RDD 进行重新分区，在新的分区中，根据 key 进行排序。这个比先调用*repartition* 操作，然后再每个分区中进行排序更高效 |
+
+
 
 # 提交应用程序
 
