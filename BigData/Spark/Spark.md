@@ -302,6 +302,213 @@ val counts = pairs.reduceByKey((a, b) => a + b)
 | repartition(numPartitions)                               | 随机地重组数据，产生更多或更少的分区，这个操作会通过网络重新 shuffle 所有的数据。 |
 | repartitionAndSortWithinPartition(partitioner)           | 根据给定的分割者对 RDD 进行重新分区，在新的分区中，根据 key 进行排序。这个比先调用*repartition* 操作，然后再每个分区中进行排序更高效 |
 
+### Actions
+
+下表中列出了一些常用的 actions 操作：
+
+| Action                                   | Meaning                                                      |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| reduce(func)                             | 使用 *func* (把两个数合成一个数的函数) 把数据集中的元素聚合。*func* 应该是可交换的和关联的，以便可以并行计算 |
+| collect()                                | 已数组的形式返回数据集中的所有元素到 driver 程序。这个操作一般在数据集被过滤后或其它操作后，只保留了极小部分的子集后使用 |
+| count()                                  | 返回数据集中元素的数量                                       |
+| first()                                  | 返回数据集中的第一个元素 (跟 *take(1)* 类似)                 |
+| take(n)                                  | 以数组的形式返回数据集的前 n 个元素                          |
+| takeSample(withReplacement, num, [seed]) | 从数据集中随机去 num 个元素组成一个样本，并以数组的形式返回  |
+| takeOrdered(n, [ordering])               | 去 RDD 中自然顺序或通过自定义排序器排序后的前 n 个元素       |
+| saveAsTextFile(path)                     | 把数据集中的元素以文本的形式写入到本地文件系统、HDFS 或其它 Hadoop 支持的文件系统 |
+| saveAsSequenceFile(path)                 | 把数据集中的元素写入到 Hadoop  序列化文件                    |
+| saveAsObjectFile(path)                   | 以 Java 序列化格式写数据集中的元素，它可以通过 *SparkContext.objectFile()* 进行加载 |
+| countByKey()                             | 只能用于 K-V 格式的数据，统计每个 key 的个数，返回一个 hashmap (K， int) 格式的数据 |
+| foreach(func)                            | 把 *func* 函数作用于集合中的每个元素上。通常用于更新累加器或跟外部存储系统交互。<br />使用定义在 *foreach()* 外的变量会出现一些意想不到的结果 |
+
+### Shuffle operations
+
+某些操作会触发 Spark 的shuffle，shuffle 是 Spark 的一个机制，用来重新分配数据。shuffle 会造成数据在 executor 和节点之间复制，因此 shuffle 是一个复杂且高消耗的操作。
+
+**背景：**
+
+为了理解 shuffle 过程中发生了什么，可以以 *reduceByKey* 为示例。*reduceByKey* 操作会形成一个新的 RDD，同一个 key 的所有 value 聚合为一个值，这个值是对 key 对应的所有 value 执行 reduce 函数的结果。
+
+在计算过程中，一个 task 对应一个分区，为了执行 *reduceByKey* 的reduce task 来组织所有的数据，Spark 必须读取所有分区上的所有数据，把不同分区上同一个 key 对应的 value 聚集在一起，最后得到每个 key 对应的聚合值，这个操作成为 shuffle。
+
+虽然 shuffle 后的数据每个分区中的数据集是确定的，分区也是有序的，但是每个分区中的元素不是有序的。如果想要 shuffle 后分区中的元素也是有序的，可以使用下面的操作：
+
+- *mapPartitions*, 排序每个分区中的数据，通过 *.sorted*
+- *repartitionAndSortWithPartitions*, 在重新分区的同时进行排序
+- *sortBy*, 形成一个全局有序的 RDD
+
+会造成 shuffle 的操作有：
+
+- repartition 操作，repartition 和  coalesce
+- ByKey 操作，groupByKey 和 reduceByKey(除了 counting)
+- join 操作，cogroup 和 join
+
+**效率影响：**
+
+Shuffle 是一个高消耗操作，它会引起磁盘 I/O、数据序列化和网络 I/O。为了组织 shuffle 的数据，Spark 会形成一系列的 map-task 来组织数据，形成一系列的 reduce-task 来聚合数据。map-task 和 reduce-task 这两个术语来自于 Hadoop MapReduce，跟 Spark 的 *map* 和 *reduce* 操作没有直接关系。
+
+单个 map-task 的计算结果会保存在内存中，直到内存放不下。然后它们根据目标分区进行排序，并写入到单个文件。reduce-task 读取相应的排序块。
+
+ 某些 shuffle 操作会消耗大量的内存，因为采用保存在内存的数据结构来组织传输前后的数据。特别是，*reduceByKey* 和 *aggregateByKey* 操作在 map 端创建这些 数据结构，然后 *ByKey* 操作在 reduce 端生成它们的数据。当内存中放满时，数据会溢出到磁盘，导致额外的磁盘 I/O 并增加垃圾回收。
+
+Shuffle 也会在磁盘上生成大量的中间文件，在 Spark 1.3，这些中间文件会一直保存直到 RDD不在被使用才会被垃圾回收。这样做的话，如果 lineage 被重新计算时，不需要再产生这些文件。如果应用程序保持对 RDD 的引用，或垃圾回收执行频率较低，垃圾回收可能会在很长一段时间后才会被触发，这也意味着长时间运行的 Spark job 会消耗大量的磁盘空间。临时保存目录在创建 SparkContext 时通过 *spark.local.dir* 参数指定。
+
+可以通过各种参数来调整 shuffle 行为，具体配置可参照 [SparkConfiguration Guid](<http://spark.apache.org/docs/2.3.0/configuration.html>) 中的  *Shuffle Behavior*。
+
+### RDD 持久化
+
+Spark 最重要的一个特性是持久化或缓存数据集到内存。当持久化一个 RDD，每个节点都会存储 RDD 在内存中计算的部分，并在改数据集的其它 action 操作中重用它们。
+
+可以通过 *persist()* 或 *cache()* 方法来持久化 RDD。第一执行 action 操作得到这个 RDD 时，它会保存在节点的内存中。Spark 的持久化是可以容错的，如果 RDD 的任何分区丢失，它会自动重算。
+
+持久化 RDD 时可以设置不同的存储级别，可以持久化数据到磁盘，可以持久化到内存并序列化(节省空间)，存放它的副本在不同的节点。可以通过给 *persist()* 方法设置一个 *StorageLevel*  来设置存储级别。*cache()* 方法是简介版的持久化方法，它的默认存储级别是 *StorageLevel.MEMORY_ONLY* (存储非序列化对象到内存)。完整的存储级别入下表：
+
+| Storage Level                            | Meaning                                                      |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| MEMORY_ONLY                              | 以非序列化的对象的格式存储 RDD 到 JVM。如果内存放不下 RDD，一些分区不会被持久化，并且会在每次用到它时被重新计算。这是默认级别。 |
+| MEMORY_AND_DISK                          | 以非序列化的对象的格式存储 RDD 到 JVM。如果内存放不下 RDD，把内存放不下的分区存放到磁盘。 |
+| MEMORY_ONLY_SER<br />(Java and Scala)    | 以序列化对象(每个分区是一个字节数组)的格式存储 RDD，这个比非序列化对象更节省空间，但是读取数据的时候会消耗更多的 CPU。 |
+| MEMORY_AND_DISK_SER<br/>(Java and Scala) |                                                              |
+| DISK_ONLY                                | 存放 RDD 的分区在磁盘上                                      |
+| MEMORY_ONLY_2, MEMORY_AND_DISK_2, etc.   | 存储分区数据在两个节点上                                     |
+| OFF_HEAP(实验阶段)                       | 类似于 *MEMORY_ONLY_SER*，存储数据在堆外内存，要求堆外内存是可用的 |
+
+> 在 Python  API 中，存储对象都会使用 *Pickle* 库进行序列化，所以是否选择序列化对它没有影响。Python API 中可选的存储级别有：*MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2, DISK_ONLY, and DISK_ONLY_2*。
+
+Spark 也会持久化一些 shuffle 的中间数据(比如，reduceByKey)，甚至不需要使用 *persist*。这样做是为了避免 shuffle 过程中失败了重算整个输入数据。非常推荐使用 *persist* ，如果 RDD 计划被多次使用。
+
+#### 选择哪个存储级别
+
+Spark 的存储级别主要是权衡内存的占用和 CPU 效率。推荐使用下面的方法来选择：
+
+- 如果 RDD 完全可以已默认存储级别 (MEMORY_ONLY) 存放在内存中，就使用这种方式进行存储。这个存储级别 CPU 效率最高，且 RDD 上的操作可以快速运行
+- 第二个考虑使用 *MEMORY_ONLY_SER* 存储级别，并选择使用 fast serialization 库，这样更节省空间，并且处理速度也可以接受
+- 不要把数据溢出到磁盘上，除非计算数据集的操作是非常高消耗的，或过滤大量的数据。否则，重新计算数据或许比从磁盘读取数据要快
+- 如果想快速的恢复数据，可以设置副本。所有的存储级别都可以通过重算数据来提供容错，副本可以让你直接在丢失分区的 RDD 进行计算，不需要等待它被重算。
+
+#### 移除数据
+
+Spark 监控每个检点上缓存的使用情况，并以最近最少使用的方法移除旧数据的分区。也可以手动移动 RDD，通过 *RDD.unpersist()* 方法。
+
+## 共享变量
+
+通常当通过 Spark 操作来运行一个函数(比如，*map* 或 *reduce*)，是在远程的集群节点运行，但是函数中运行的变量都是单独拷贝的。变量会被复制到每台机器上，并且远程机器上更新的变量不会传播会 driver 程序。跨 task 读写分享变量是低效的。Spark 提供了两类 *shared variables*: 广播变量 (*broadcast variables*) 和累加器 (*accumulators*)。
+
+### 广播变量
+
+广播变量允许程序保存一个只读变量缓存在每台机器上，而不是在 task 中保存一个副本。它可以以高效的方式给每个节点一个大量数据输入的副本。Spark 还尝试使用高效的广播算法分发广播变量以降低通信成本。
+
+Spark action 通过一系列的 stage 执行的，stage 是通过 shuffle 操作划分的。在每个 stage 中 Spark 会自动广播 task 中共同的数据。数据广播的方式是先以序列化的格式 cache，然后在 task 执行前进行反序列化。这意味着显示的创建广播变量只有当跨越多个 stage 的 task 需要相同的数据，或者通过非序列化格式 cache 数据是重要的。
+
+广播变量创建和调用方法：
+
+```scala
+// 创建
+scala> val broadcastVar = sc.broadcast(Array(1, 2, 3))
+broadcastVar: org.apache.spark.broadcast.Broadcast[Array[Int]] = Broadcast(0)
+
+// 调用
+scala> broadcastVar.value
+res0: Array[Int] = Array(1, 2, 3)
+```
+
+### 累加器
+
+累加器通常用来实现计数器和 sum，Spark 本身就支持数字类型的累加器，开发者可以添加对其它类型的支持。
+
+数字类型的累加器可以通过 *SparkContext.longAccumulator()* 或 *SparkContext.doubleAccumulator()* 来创建。运行在集群上的 task 可以使用 *add* 方法来加累加器，但是它们不能读取累加器的值，只有 driver 程序可以通过 *value* 方法来读取累加器的值。
+
+一下代码展示了使用累加器来加和数组中的元素：
+
+```scala
+scala> val accum = sc.longAccumulator("My Accumulator")
+accum: org.apache.spark.util.LongAccumulator = LongAccumulator(id: 0, name: Some(My Accumulator), value: 0)
+
+scala> sc.parallelize(Array(1, 2, 3, 4)).foreach(x => accum.add(x))
+...
+10/09/29 18:41:08 INFO SparkContext: Tasks finished in 0.317106 s
+
+scala> accum.value
+res2: Long = 10
+```
+
+这个示例中创建了一个 Long 类型的累加器，我们可以通过继承 *AccumulatorV2* 类来创建其它类型的累加器，需要重写 *AccumulatorV2* 中的一些方法：
+
+- *reset*，这是累加器为 0
+- *add*，加和另外一个值到累加器中
+- *merge*，合并另一个相同类型的累加器
+
+还有一些其它的方法，可以参考 [API documentation](http://spark.apache.org/docs/2.3.0/api/scala/index.html#org.apache.spark.util.AccumulatorV2)。示例：
+
+```scala
+class VectorAccumulatorV2 extends AccumulatorV2[MyVector, MyVector] {
+
+  private val myVector: MyVector = MyVector.createZeroVector
+
+  def reset(): Unit = {
+    myVector.reset()
+  }
+
+  def add(v: MyVector): Unit = {
+    myVector.add(v)
+  }
+  ...
+}
+
+// Then, create an Accumulator of this type:
+val myVectorAcc = new VectorAccumulatorV2
+// Then, register it into spark context:
+sc.register(myVectorAcc, "MyVectorAcc1")
+```
+
+> Myvector 是一个已经写好的代表数学适量的类
+
+累加器的值只有在 action 操作是才会更新，Spark 保证每个 task 只会更新累加器一次，比如，重启 task 不会更新累加器 的值。对于 transformations 操作，开发者 必须认识到如果 stage 被重新执行，每个 task 可能会多次更新累加器。
+
+累加器也是懒惰计算，如果累计器是在 transformations 操作中更新，它的值也只会在执行 action 操作是更新。
+
+# 集群模式概览
+
+这部分内容主要介绍 Spark 如何运行在集群上，便于理解 Spark 包含的各种组件。
+
+## 组件
+
+Spark 应用程序以一系列的进程运行在集群上，通过主程序( driver program) 上的 *SparkContext* 调用。
+
+在集群上运行，SparkContext 可以连接多种集群管理(Spark standalone 集群管理, Mesos 或 YARN)，它们给应用程序分配资源。一旦连接，Spark 从集群节点请求*executor*，executor 用来运行和存储程序的数据。然后，发送应用程序代码(由 jar 或 Python 文件定义的代码，通过 SparkContext 发送) 到 executors。最后 SparkContext 发送 tasks 到 executor 运行。
+
+![](http://spark.apache.org/docs/2.3.0/img/cluster-overview.png)
+
+简要介绍下这种结构：
+
+1. 每个应用程序获取它们自己的 executor 进程，这些进程会伴随整个程序，并且在多个线程中运行 task。这样对格力应用程序非常有益，在安排任务这一边(每个 driver 安排它们自己的 task)，在 executor 这一边(不同应用程序的 task 运行在不同的 JVM 上)。这也意味着如果不把数据写入外部存储系统，数据就不能再不同的 Spark 应用程序之间共享。
+2. Spark 跟底层的集群管理器无关的，只要它可以获取到 executors 进程，并且这些进程之间是可以相互通信的，即使集群管理器也支持其它应用程序，它也可以运行(比如, Mesos 或 YARN)。
+3. driver 程序必须监听和接受来自 executor 的连接。
+4. 因为 driver 程序安排集群上的 tasks, 所以它应该运行在离 worker 节点较近的地方，优选同一个网络内的机器。如果你想远程发送请求到集群，最好给 driver 开启一个 RPC ，并让它从附近节点提交操作，而不是与远离 worker 节点。
+
+## 监控
+
+每个 driver 程序都有一个 Web UI，一般是在 4040 端口，这里展示 tasks, executors 和 存储空间使用信息。可以通过在浏览器访问 *http://\<driver-node>:4040* 来打开 WebUI。具体 monitor 介绍在 [monitoring guide](http://spark.apache.org/docs/2.3.0/monitoring.html)。
+
+## 术语
+
+下表总结了常用的概念：
+
+| Term            | Meaning                                                      |
+| --------------- | ------------------------------------------------------------ |
+| Application     | 用户构建在 Spark 上的程序。由集群上的 driver 程序和 executors 组成 |
+| Application jar | 包含用户 Spark 应用程序的 jar。用户的 jar 包中不应该包含 Hadoop 和 Spark 相关的库，这些库在运行时已经包含了 |
+| Driver program  | 运行应用程序的 main 函数，并创建 SparkContext                |
+| Cluster manager | 一个外部服务用来从集群上请求资源，比如，standalone, Mesos, YARN |
+| Deploy mode     | 区分 driver 程序在哪里运行。"cluster" 模式，在集群内加载 driver 程序。"client" 模式， |
+|                 |                                                              |
+|                 |                                                              |
+|                 |                                                              |
+|                 |                                                              |
+|                 |                                                              |
+
+
+
 
 
 # 提交应用程序
