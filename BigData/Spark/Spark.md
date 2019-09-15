@@ -500,12 +500,12 @@ Spark 应用程序以一系列的进程运行在集群上，通过主程序( dri
 | Application jar | 包含用户 Spark 应用程序的 jar。用户的 jar 包中不应该包含 Hadoop 和 Spark 相关的库，这些库在运行时已经包含了 |
 | Driver program  | 运行应用程序的 main 函数，并创建 SparkContext                |
 | Cluster manager | 一个外部服务用来从集群上请求资源，比如，standalone, Mesos, YARN |
-| Deploy mode     | 区分 driver 程序在哪里运行。"cluster" 模式，在集群内加载 driver 程序。"client" 模式， |
-|                 |                                                              |
-|                 |                                                              |
-|                 |                                                              |
-|                 |                                                              |
-|                 |                                                              |
+| Deploy mode     | 区分 driver 程序在哪里运行。"cluster" 模式，在集群内加载 driver 程序。"client" 模式，在集群外运行 driver |
+| Worker node     | 集群中任何可以运行程序的节点                                 |
+| Executor        | 一个运行在 worker 节点上的进程，用来加载程序，它可以运行 task，并在内存和磁盘保存数据。每个程序都运行在自己的 executor 上 |
+| Task            | 发送 executor 的一个工作单元                                 |
+| Job             | 由多个 task 组成的并行计算，这些 task 是对 Spark action 的相应(比如，save, collect)。可以通过 driver 的 log 来查看 |
+| Stage           | 每个 Job 可以被划分为更小的 task 集合，这个 task 集合就叫 stage, 每个 stage 之间相互依赖(跟 MapReduce 中的 map 和 reduce stage 类似)，可以通过 driver 日志查看 |
 
 
 
@@ -652,6 +652,180 @@ Spark 可以自己运行，也可以通过几个现有的集群管理器运行�
 - Hadoop Yarn
 - Kubernetes
 
+## Spark Standalone Mode
+
+Spark 提供了一个独立运行的部署模式，也可以手动开启一个 master 和 workers 来手动加载一个 standalone 集群，或者通过已经提供好的脚本。也可以在一台机器上运行这些进程。
+
+### 手动启动集群
+
+启动 master:
+
+```shell
+./sbin/start-master.sh
+```
+
+启动后，master 会输出 *spark://HOST:PORT* URL，可以通过这个连接 workers，也可以作为*SparkContext* 的 *master* 参数的值。也可以在 master 的 web UI 上找到这个地址，master 的 Web UI 默认地址是 *http://localhost:8080*。
+
+启动 worker:
+
+```shell
+./sbin/start-slave.sh <master-spark-URL>
+```
+
+启动 worker 节点后，查看 master 的 WebUI(默认 http://localhost:8080)，就会看到新的节点列表，还有 CPU 个数和内存。
+
+下面这些参数可以传值该 master 和 worker：
+
+| argument                | meaning                                                      |
+| ----------------------- | ------------------------------------------------------------ |
+| -h Host, --host Host    | 监听的主机                                                   |
+| -i Host, --ip Host      | 监听的主机(已启用，可以使用 -h 或 --host)                    |
+| -p Port, --port Port    | 监听服务的端口(默认，master 是 7077, worker 是随机的)        |
+| --webui -port PORT      | web UI 的端口(默认，master 8088, worker 8081)                |
+| -c Cores, --cores cores | 节点上运行的 Spark 程序可以使用的 CPU 核数，只有 worker 可以设置，默认所有都可用 |
+| -m Mem, --memory Mem    | 节点上运行的 Spark 程序可以使用的总内存大小，只有 worker 可以设置，默认总内存减 1GB |
+| -d Dir, --worke-dir Dir | 用于临时空间和作业输出日志的目录，只有 worker 可以设置，默认 SPARK_HOME/work |
+| --properties-file FILE  | 用于加载 Spark 属性文件的路径，默认 conf/spark-default.conf  |
+
+### 集群启动脚本
+
+通过启动脚本启动 Spark standalone 集群，需要再 conf/ 目录下创建一个 slaves 文件，这个文件中需要包含所有 worker 节点的 hostname，一行写一个。如果没有 slaves 文件，启动脚本默认认为这是一个单节点机器。master 节点可以通过 ssh 来访问 worker 节点，ssh 需要并行运行，并需要配置免密登录。如果没有设置免密登录，可以设置 SPARK_SSH_FOREGROUND 环境变量，并给每个 worker 节点设置密码。
+
+设置了 slaves 文件后，就可以通过下面的脚本来启动和停止集群，可以使用 Hadoop 的脚本，也可以使用 SPARK_HOME/sbin下的脚本：
+
+- start-master.sh, 启动 master 实例
+- start-slaves.sh, 启动 slaves 文件制定的机器上的 slave 实例
+- start-slave.sh, 启动运行脚本这台机器上的 slave 实例
+- start-all.sh, 启动 master 和所有的 slave 实例
+- stop-master.sh, 停止 master
+- stop-slaves.sh, 停止 slaves 文件制定的机器上的 slave
+- stop-slave.sh, 停止运行脚本这台机器上的 slave
+- stop-all.sh, 停止 master 和所有的 slave
+
+> 这些脚本必须在你想运行 Spark master 的机器上运行，而不是你本地机器
+
+你可以通过在 *conf/spark-env.sh* 中设置环境变量来进一步配置集群，可以通过 *conf/spark-env.sh.template* 文件来创建这个文件，还需要把这个文件复制到所有的 worker ，配置才会生效。下面是可以设置的变量：
+
+| 环境变量                | 意义                                                         |
+| ----------------------- | ------------------------------------------------------------ |
+| SPARK_MASTER_HOST       | 将 master 绑定到特定的主机或 ip 地址，比如公共主机           |
+| SPARK_MASTER_PORT       | 在不同的端口启动 master                                      |
+| SPARK_MASTER_WEBUI_PORT | master 的 WebUI 端口(默认：8080)                             |
+| SPARK_MASTER_OPTS       | 设置仅作用在 master 的属性，以 “-Dx=y" 的格式                |
+| SPARK_LOCAL_DIRS        | Spark 的临时目录，保存 map 输出文件和需要保存在磁盘的 RDD。这个目录应该是系统中的快速磁盘。可以通过逗号分隔自定不同磁盘上的多个目录 |
+| SPARK_WORKER_CORES      | Spark 程序可以使用的 CPU 核数                                |
+| SPARK_WORKER_MEMORY     | Spark 程序可以使用的内存。可以通过 spark.executor.memory 指定每个 Spark 程序使用的内存 |
+| SPARK_WORKER_PORT       | 在指定的端口启动 Spark worker，默认是随机端口                |
+| SPARK_WORKER_WEBUI_PORT | worker WebUI 使用的端口                                      |
+| SPARK_WORKER_DIR        | 用来运行程序的目录，包含日志和临时空间，默认：SPARK_HOME/work |
+| SPARK_WORKER_OPTS       | 设置作用在 worker 上的属性，以"-Dx=y"的格式                  |
+| SPARK_DAEMON_MEMORY     | Spark master 和 worker 进程使用的内存数，默认 1G             |
+| SPARK_DAEMON_JAVA_OPTS  | 以 "-Dx=y" 的格式设置 master 和worker 进程的 JVM 属性        |
+| SPARK_DAEMON_CLASSPATH  | spark master 和 worker 进程的 classpath                      |
+| SPARK_PUBLIC_DNS        | Spark master 和 worker 的公共 DNS                            |
+
+> spark 启动脚本不支持 Windows, 在 Windows 上运行 Spark，可以手动启动 master 和 worker
+
+SPARK_MASTER_OPTS 支持以下属性：
+
+| Property Name                     | Default    | Meaning                                                      |
+| --------------------------------- | ---------- | ------------------------------------------------------------ |
+| spark.deploy.retainedApplications | 200        | 展示已完成程序的最大数量，更旧的程序会从 UI 中删除           |
+| spark.deploy.retainedDrivers      | 200        | 展示已完成 driver 的最大数量                                 |
+| spark.deploy.spreadOut            | true       | standalone 集群是跨节点扩展应用程序还是尝试将他们合并到尽可能少的节点上。如果数据在 HDFS 上扩展出去会比较好，对于计算密集型工作，聚集在一起会比较好 |
+| spark.deploy.defaultCores         | (infinite) | 如果没有设定 spark.cores.max, 通过这个来指定分配给应用程序的 CPU 核数。如果没有设置这个参数，也没有设置 *spark.cores.max* 参数，会分配给应用程序所有可用的 CPU 核。在共享集群上，把这个值设置的低一些，防止程序获取整个集群的 CPU 核 |
+| spark.deploy.maxExecutorRetries   | 10         | 设置集群管理员移除失败程序前的重试次数。任何应用程序，如果有正在运行的 executor,是不会被移除的。如果要禁用自动删除，可以设置参数为 -1 |
+| spark.worker.timeout              | 60         | master 接受不到 worker 的心跳时，认为 worker 丢失的秒数      |
+
+SPARK_WORKER_OPTS 支持以下属性：
+
+| Property Name                                    | Default          | Meaning                                                      |
+| ------------------------------------------------ | ---------------- | ------------------------------------------------------------ |
+| spark.worker.cleanup.enable                      | false            | 周期性清除 worker/application 目录。这个只对 standalone 有用，YARN worker 不同。只有已经停止的 application 目录会被清除 |
+| spark.worker.cleanup.interval                    | 1800(30 minutes) | 设置清除的周期，单位 s,                                      |
+| spark.worker.cleanup.appDataTtl                  | 604800 (7 days)  | 保持 application 工作目录的时长，单位 s。这个时间应该由磁盘的空间来决定。工作目录很快会被放满，尤其是非常频繁运行 job 时 |
+| spark.worker.ui.compressedLogFileLengthCacheSize | 100              | 对于已经压缩的日志文件，只能通过解压缩来计算未压缩文件。Spark 缓存已经压缩日志文件的解压缩文件大小。这个属性用来设置缓存的大小 |
+
+### 连接应用程序到集群
+
+在 Spark 集群运行一个应用程序，可以在创建 SparkContext 时指定 master 为 *spark://IP:PORT*。
+
+在集群运行 Spark shell，可以使用下面的命令：
+
+```shell
+./bin/spark-shell --master spark://IP:PORT
+```
+
+> 也可以使用 *--total-executor-cores <numCores>*  来指定 spark-shell 在集群上使用的 CPU 核数
+
+### 加载 Spark 应用程序
+
+*spark-submit* 脚本可以提价应用程序到集群，对于 standalone 集群，Spark 支持两种部署模式：
+
+- client, deriver 跟提交应用程序的客户端在同一个进程中
+- cluster, driver 在集群中的 worker 节点上启动，并且 client 进程一旦完成它提交应用程序的责任就会推出，不会等待应用程序执行完
+
+如果应用程序时通过 Spark submit 提交的，应用程序的 jar 包会自动发散到各个 worker 节点上。对于应用程序依赖度的 jar 包，可以通过 --jars 参数来指定(通过逗号分隔，比如，--jars jar1,jar2)。
+
+standalone 的 *cluster* 模式可以在应用程序的退出码不为 0 时，重新启动应用程度。要使用这个特性，可以在通过 *spark-submit* 提交应用程序时指定 *--supervise* 参数。如果你想干掉一个一直在失败的应用程序，可以通过下面的 命令：
+
+```shell
+./bin/spark-class org.apache.spark.deploy.Client kill <master url> <driver ID>
+```
+
+> 可以通过 standalone 的 Master 的 Web UI 来找到 driver ID, Web UI 的地址为 http://<master url>:8080
+
+### 资源调度
+
+standalone 集群目前只支持 FIFO 资源调度，如果要多个用户同时使用，可以通过控制每个应用程序使用的最大资源数。默认，每个应用程序可以使用集群的所有 CPU 核，这也意味着同一时间只能运行一个程序。可以在 SparkConf 中通过 *spark.cores.max* 来指定所使用的 CPU 核数:
+
+```scala
+val conf = new SparkConf()
+  .setMaster(...)
+  .setAppName(...)
+  .set("spark.cores.max", "10")
+val sc = new SparkContext(conf)
+```
+
+也可以配置 master 进程的 *spark.deploy.defaultCores* 选项来改变应用程序的默认配置，以改变没有设置 *spark.core.max* 应用程序的默认值。可以在 conf/spark-env.sh 文件中添加：
+
+```shell
+export SPARK_MASTER_OPTS="-Dspark.deploy.defaultCores=<value"
+```
+
+### Executors 调度
+
+分配给每个 executor 的 CPU 核是可以设置的，如果 *spark.executor.cores* 是被明确指定的，如果 worker 节点有足够的 cores 和 内存，那么一个应用程序的 executor 会被分配到同一个 worker 节点上，如果没有指定，那么每个 executor 默认获取 worker 节点上所有可用的 cores，这样每个 worker 节点只能加载一个应用程序的一个 executor。
+
+### Monitor && Logging
+
+Spark 的 standalone 模式提供了一个基于 Web 的用户界面来监控集群。master 和每个 worker 都有它们自己的 web UI，展示集群和 job 的统计信息。默认情况下可以通过 8080 端口登录 master 的 web UI，这个端口可以通过配置文件或命令行修改。
+
+每个 job 的详细日志会写到每个 slave 节点的工作目录(默认为 SAPRK_HOME/work)。还可以看到两个文件：stdout 和 stderr, 所有输出会写入到控制台。
+
+### 跟 Hadoop 一起运行
+
+如果 Spark 作为一个单独的服务跟 Hadoop 运行在相同的机器上，可以使用 hdfs://URL(hdfs://\<namenode>:9000/path，URL 可以在 Hadoop 的 Namenode 的 Web UI 发现) 来通过 Spark 访问 Hadoop 上的数据。另外，你可以设置一个单独的 Spark 集群，并还是可以通过网络访问 HDFS 的数据，这个会被访问本地磁盘慢。
+
+### 高可用
+
+standalone 集群对失败的 worker 是可以快速恢复的(把失败的 worker 移动到其它 worker 上)。但是 master 是用来做资源调度的，这个存在单点故障: 如果 master 挂掉后，没有新的 master 可以创建，为了解决这个问题，提供了一下两个高可用方案：
+
+**通过 Zookeeper 设置备用 Master**
+
+利用 Zookeeper 来提供 leader 选举并存储一些状态，可以在集群中加载多个连接在同一个 Zookeeper 的 Master。其中一个会被选为 "leader"，其它的会处于 standby 模式。如果当前的 leader 挂了，另外一个 Master 会被选举出来，重新这只旧的 Master 的状态，并回复调度。整个恢复过程会消耗 1 到 2 分钟。这个调度的延期只是对新的应用程序有影响，对在 Master 失败时已经运行的程序没有影响。
+
+可以通过 spark-env 中的 *spark.deploy.recoverMode* 和 *spark.deploy.zookeeper.\** 配置 SPARK_DAEMON_JAVA_OPTS, 来开启这个模式。更多的配置说明可以参考 [configuration doc](https://spark.apache.org/docs/2.3.0/configuration.html#deploy)。
+
+> 如果在集群中有多个 master, 但是没有通过 Zookeeper 配置 master, master 不会发现它们彼此，并认为它们都是 leader，这样集群中所有的 master 都是彼此独立的，集群是不会处于健康状态的。
+
+如果已经拥有一个 Zookeeper 集群，那么配置高可用是非常简单的，通过相同的 Zookeeper 配置(ZK 的 URL 和目录) 在不同的节点来开启多个 Master 进程，Master 可以再任何时候添加和移除。
+
+在调度应用程序和添加 worker 到集群时，它们需要知道当前 leader 的 IP 地址。可以穿入 master 地址的列表。比如，可以在 SparkContext 中设置 *spark://host1:port1,host2:port2*，这样如果 host1 挂了，SparkContext 会去发现新的 leader。
+
+"registering with a Master" 跟正常操作之间存在一个重要不同点，在启动的时候，应用程序或 worker 需要找到并注册到当前的 leader master 上。如果注册成功，它会有一个 "in the system" 状态(存储在 Zookeeper中)。如果出现失败情况，新的 leader 会联系所有当前已经注册的应用程序和 worker, 通知它们 leader 已经改变，它们在启动时甚至不需要知道新 master 的存在。
+
+因为这个属性，新的 Master 可以在任何时候被创建，我们只需要关心新的应用程序和 worker 可以被注册。
 
 
-# 累加器
+
