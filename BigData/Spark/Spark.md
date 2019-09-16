@@ -827,5 +827,80 @@ standalone 集群对失败的 worker 是可以快速恢复的(把失败的 worke
 
 因为这个属性，新的 Master 可以在任何时候被创建，我们只需要关心新的应用程序和 worker 可以被注册。
 
+**通过本地文件进行单节点恢复**
 
+Zookeeper 是生产环境进行高可用的最好方式，如果你只是想在 Master 挂掉后重启它，可以使用 FILESYSTEM 模式。在应用程序和 worker 注册时，会把状态信息写入指定目录，以便在重启 Master 进程时恢复它们。
+
+可以通过 spark-env 的 SPARK_DAEMON_JAVA_OPTS 配置项来配置这个模式：
+
+| System property               | Meaning                                            |
+| ----------------------------- | -------------------------------------------------- |
+| spark.deploy.recoverMode      | 默认为 NONE，设置为 FILESYSEM 来开启单节点恢复模式 |
+| spark.deploy.recoverDirectory | 用来存储状态的目录，要求是 Master 可访问的         |
+
+> - 这个解决方案可以跟过程监控/管理器一起使用，或仅仅允许通过重启来手动恢复
+> - 通过文件系统恢复显然比什么都不做要好，这个模式可能是次最优的在一些开发或实验目的下。通过 *stop-master.sh* 脚本干掉 master 并不会清除 recover 状态，所以不管你什么时候开启一个新的 Master, 它都会进入 recover 模式，这个会增加 1 分钟的启动时间。
+> - 虽然没有得到官方支持，你可以挂在一个 NFS 目录来作为恢复目录。
+
+## Spark on YARN
+
+从 Spark 0.6.0 版本开始支持 Spark on YARN 模式，并在随后的版本中得到改进。
+
+### 配置 Spark on YARN
+
+确保 HADOOP_CONF_DIR 或 YARN_CONF_DIR 指向一个包含 Hadoop 集群配置文件的目录。这些配置是用来往 HDFS 写入数据，并连接 YARN 的 ResourceManager。这个目录中包含的配置会被分发到 YARN 集群，以便所有应用程序使用的 container 使用相同的配置文件。如果引用 Java 系统属性或环境变量没有被 YARN 管理，那么它们应该在 Spark 应用程序中设置(当运行在 client 模式时，在 driver, executors 和 AM 中设置)。
+
+通过 YARN 加载应用程序时有两种部署模式：
+
+- cluster 模式，Spark driver 运行在 YARN 集群的 AM 进程上，并且 client 会在程序开始后关掉。
+- client 模式，driver 运行在 client 进程中，AM 只是用来从 YARN 上获取资源
+
+不像其它 Spark 支持的集群管理，master 的地址通过 *--master* 参数来指定，在 on YARN 模式中，ResourceManager 的地址从 Hadoop 配置文件中获取，因此 *--master* 参数应该指定为 *yarn*。
+
+通过 cluster 模式加载 Spark 应用程序：
+
+```shell
+$ ./bin/spark-submit --class path.to.your.Class --master yarn --deploy-mode cluster [options] <app jar> [app options]
+```
+
+示例：
+
+```shell
+$ ./bin/spark-submit --class org.apache.spark.examples.SparkPi \
+    --master yarn \
+    --deploy-mode cluster \
+    --driver-memory 4g \
+    --executor-memory 2g \
+    --executor-cores 1 \
+    --queue thequeue \
+    examples/jars/spark-examples*.jar \
+    10
+```
+
+在这个示例中启动了一个 YARN client 程序来启动默认的 Application Master，SparkPi 作为 Application Master 的子进程运行。client 会定期的拉取 Application Master 的更新状态，并展示在控制台。在应用程序运行结束的时候，client 会退出。
+
+以 *client* 模式加载 Spark 应用程序，只需要把 *cluster* 替换为 *client*。下面展示了以 *client* 模式运行 spark-shell:
+
+```shell
+$ ./bin/spark-shell --master yarn --deploy-mode client
+```
+
+### 添加其它的 JAR 包
+
+在 *cluster* 模式中，driver 跟 client 运行在不同的机器上，因此 *SparkContext.addJar* 不能使用位于 client 的文件。要让位于 client 的文件可以通过 *SparkContext.addJar* 使用，可以通过 *--jars* 来包含这些文件。
+
+```shell
+$ ./bin/spark-submit --class my.main.Class \
+    --master yarn \
+    --deploy-mode cluster \
+    --jars my-other-jar.jar,my-other-other-jar.jar \
+    my-main-jar.jar \
+    app_arg1 app_arg2
+```
+
+### 准备
+
+要在 YARN 上运行 Spark, 需要一个支持 YARN 的 Spark 二进制包，二进制包可以从[下载页面](http://spark.apache.org/downloads.html) 进行下载。
+
+为了让 YARN 可以访问 Spark 运行时 jar 包，可以指定 *spark.yarn.archive* 或 *spark.yarn.jars* 参数。
 
