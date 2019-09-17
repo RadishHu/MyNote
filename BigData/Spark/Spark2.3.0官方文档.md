@@ -902,5 +902,110 @@ $ ./bin/spark-submit --class my.main.Class \
 
 要在 YARN 上运行 Spark, 需要一个支持 YARN 的 Spark 二进制包，二进制包可以从[下载页面](http://spark.apache.org/downloads.html) 进行下载。
 
-为了让 YARN 可以访问 Spark 运行时 jar 包，可以指定 *spark.yarn.archive* 或 *spark.yarn.jars* 参数。
+为了让 YARN 可以访问 Spark 运行时 jar 包，可以指定 *spark.yarn.archive* 或 *spark.yarn.jars* 参数。详细的配合信息可以参考 [Spark Properties](http://spark.apache.org/docs/2.3.0/running-on-yarn.html#spark-properties)。如果 *spark.yarn.archive* 和 *spark.yarn.jars* 都没有被指定，Spark 会在 $SPARK_HOME/jars 目录下创建包含所有 jar 包的 zip 文件，并上传它们到分布式缓存中。
+
+### Debugging 应用程序
+
+在 YARN 中，executor 和 application master 运行在 container 中，YARN 有两种模式来处理已经运行完 application 的 container 日志。如果开启了日志聚合(*yarn.log-aggregation-enable* 配置)，container 日志会复制到 HDFS，并从本地磁盘删除。这些日志可以通过 *yarn logs* 命令在集群的任何节点访问：
+
+```shell
+yarn logs -applicationId <app ID>
+```
+
+> 这个命令会数据指定应用程序在所有 containers 的日志
+
+也可以直接使用 HDFS shell 或 API 查看 container 日志文件，日志文件的位置可以通过 YARN 的 *yarn.nodemanager.remote-app-log-dir* 和 *yarn.nodemanager.remote-app-log-dir-suffix* 配置来查看。日志也可以通过 Spark Web UI 下的 Executors 菜单页查看，需要开启 Spark history 和 MapReduce history 服务并配置 yarn-site.xml 文件中的 *yarn.log.server.url* 属性。Spark history 服务 UI 中的日志 URL 会重定向到 MapReduce history 服务中来展示聚合日志。
+
+如果没有开启聚合日志，日志会保存在本地的 *YARN_APP_LOGS_DIR*，这个通常会配置为 */tmp/logs* 或 */HADOOP_HOME/logs/user*，这个跟 Hadoop 的版本有关。可以在运行 container 的主机的指定目录下查看 continer 的日志。子目录通过 application ID 和 container ID 来组织日志，日志也可以在 Spark Web UI 的 Executor 菜单下查看，并不需要开启 MapReduce history 服务。
+
+增加 *yarn.nodemanager.delete.debug-delay-sec* 到一个更大的值(比如，3600)，并通过 *yarn.nodemanager.local-dirs* 配置允许应用程序缓存在 container 运行的节点。这个目录包含加载一个 container 需要的脚本、jars和环境变量。这些对调试应用程序问题是非常有用的。
+
+自定义应用程序 master 和 executor 的 log4j 配置，一下是一些选项：
+
+- 通过 spark-submit 上传 log4j.properties 文件，通过 *--files* 选项添加要上传的文件
+- 添加 *-Dlog4j.configuration=\<location of configuration file> 到 Driver 的 *spark.driver.extraJavaOptions*  或 Executor 的 *spark.executor.extraJavaOptions*。如果使用的是一个文件，`file:` 需要被指定，并且文件需要存在于所有节点的本地目录。
+- 更新 *$SPARK_CONF_DIR/log4j.properties* 文件，它会自动通过其它配置上传，其它两个配置方式比这种配置方式由更高的优先级。
+
+> 第一种配置方式，每个  executor 和应用程序的 master 会分享相同的 log4j 配置，如果 master 和 executor 在同一个节点是会出现问题，比如，会把日志写入相同的日志文件
+
+如果需要将日志放在 YARN，以便 YARN 可以展示和聚合日志，可以使用配置 log4j.properties 文件的 *spark.yarn.app.container.log.dir*，比如：*log4j.appender.file_appender.File=${spark.yarn.app.container.log.dir}/spark.log* 。对于流式应用程序，设置 *RollingFileAppender* 并设置日志文件位置为 YARN 的日志目录，可以避免磁盘爆满。
+
+为应用程序的 master 和 executor 定义 metrics.properties，更新 *$SPARK_CONF_DIR/metrics.properties* 文件。这个文件会自动通过其它配置上传，不需要通过 *--files* 参数指定。
+
+Spark 属性：
+
+| Property Name                                     | Default                                      | Meaning                                                      |
+| ------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| spark.yarn.am.memory                              | 512m                                         | YARN Application Master 在 client 模式时使用的内存，在 cluster 模式时使用 *spark.driver.memory* 来指定内存 |
+| spark.yarn.am.cores                               | 1                                            | client 模式时 YARN Application Master 使用的核数，在 cluster 模式可以使用 *spark.driver.cores* 来 指定 |
+| spark.yarn.am.waitTime                            | 100s                                         | 在 cluster 模式，YARN Application Master 等待 SparkContext 初始化的时间。在 client 模式，YARN Application Master 等待 driver 连接的时间 |
+| spark.yarn.submit.file.replication                | HDFS 默认的副本数(3)                         | 应用程序上传到 HDFS 的文件的备份数，包含 Spark jar,app jar 和分布式缓存 |
+| spark.yarn.stagingDir                             | 当前用户的 home 目录                         | 提交应用程序时使用的 staging 目录                            |
+| spark.yarn.preserve.staging.files                 | false                                        | 设置为 *true* 会在程序运行结束后保存 staged 文件(Spark jar, app jar, 分布式环境文件)，而不是删除它们 |
+| spark.yarn.scheduler.heartbeat.interval-ms        | 3000                                         | Spark application 跟 YARN ResourceManager 进行心跳的时间间隔，单位 ms，最大值为  YARN 满期配置的一半，比如，*yarn.am.liveness-monitor.expiry-interval-ms* |
+| spark.yarn.scheduler.initial-allocation.interval  | 200ms                                        | 当存在待处理容器分配请求时，Spark application master 跟 YARN ResourceManager 进行心跳的时间间隔。它不应该比 *spark.yarn.scheduler.heartbeat.interval-ms* 大。如果依然存在待分配容器，心跳间隔会在原来基础上加倍，直到达到 *spark.yarn.scheduler.heartbeat.interval-ms* |
+| spark.yarn.max.executor.failures                  | numExecutor *2, 最小值为 3                   | application 失败之前，最大失败 executor 次数                 |
+| spark.yarn.historyServer.address                  | none                                         | Spark history 服务的地址，比如，*host.com:18080*，这个地址不应该包含协议(http://)，默认是没设置的。当 Spark 应用程序完成后，将应该用程序从 ResourceManager UI 链接到 Spark history UI，并将此地址提供该 YARN ResourceManager。对于 这个属性，可以使用 YARN 属性进行配置，并它们会在 Spark 运行时被替代。比如，如果 Spark histroy 服务跟  YARN ResourceManager 运行在同一台机器上，可以设置为 ${hadoopconf-yarn.resourcemanager.hostname}:18080 |
+| spark.yarn.dist.archives                          | none                                         | 逗号分隔的存档列表，会被上传到每个 executor 的工作目录       |
+| spark.yarn.dist.files                             | none                                         | 逗号分隔的文件列表，会被放置在每个 executor 的工作目录       |
+| spark.yarn.dist.jars                              | none                                         | 逗号分隔的 jar 包列表，会被放置在每个 executor 的工作目录    |
+| spark.yarn.dist.forceDownloadSchemes              | none                                         | 逗号分隔的方案列表，在将文件添加到 YARN 的分布式缓存之前将文件下载到本地磁盘。 |
+| spark.yarn.am.memoryOvehead                       | AM memory *0.1, 最小值为  384                | 跟 *spark.driver.memoryOverhead* 类似，但是是用于 client 模式下的 YARN Application Master |
+| spark.yarn.queue                                  | default                                      | 应用程序提交到 YARN 的队列名称                               |
+| spark.yarn.jars                                   | none                                         | 包含 Spark 代码的库列表，会被分配到 YARN 的 containers 中。Spark on YARN 会使用本地的 jar 包，但是 Spark jar 包也可以在 HDFS 上。这个允许 YARN 在节点上缓存它，不需要每次应用程序运行时再分配它。要指定 HDFS 上的 jar 包，可以配置为 *hdfs:///some/path* |
+| spark.yarn.archive                                | none                                         | 一个包含需要分配到 YARN 缓存的 Spark jar 包存档。如果设置了这个参数，它会替代 *spark.yarn.jars*, 并且存档会应用在所有应用程序的 container 中。存档应该在它的根目录中包含 jar 文件，存档也可以放在 HDFS 上来加快文件的分发 |
+| spark.yarn.access.hadoopFileSystems               | none                                         |                                                              |
+| spark.yarn.appMasterEnv.[EnvironmnetVariableName] | none                                         | 通过 *EnvironmentVariableName* 添加环境变量到 Application Master 进程中。用户可以添加多个环境变量。在 cluster 模式，这个可以控制 Spark driver 的环境变量，在 client 模式，它只控制 executor 的环境变量 |
+| spark.yarn.containerLauncherMaxThread             | 25                                           | YARN Application Master 用来加载 executor container 的最大线程数 |
+| spark.yarn.am.extraJavaOptions                    | none                                         |                                                              |
+| spark.yarn.am.extraLibraryPath                    | none                                         |                                                              |
+| spark.yarn.maxAppAttempts                         | yarn.resourcemanager.am.max-attempts in YARN | 提交应用程序的最大重试次数，这个值不能比 YARN 配置的最大次数大 |
+| spark.yarn.am.attemptFailuresValidityInterval     | none                                         |                                                              |
+| spark.yarn.executor.failuresValidityInterval      | none                                         |                                                              |
+| spark.yarn.submit.waitAppCompletion               | true                                         | 在 YARN cluster 模式，控制client 是否等 application 完成后在退出。如果设置为 *true*，client 进程会一直存活并报道 application 的状态。否则，client 进程会在提交后退出 |
+| spark.yarn.am.nodeLabelExpression                 | none                                         |                                                              |
+| spark.yarn.executor.nodeLabelExpression           | none                                         |                                                              |
+| spark.yarn.tags                                   | none                                         | 逗号分隔的字符串列表，作为 YARN 应用程序的标签出现在 YARN ApplicatioReports 中，可以通过查询 YARN 应用程序 |
+| spark.yarn.keytab                                 | none                                         |                                                              |
+| spark.yarn.principal                              | none                                         |                                                              |
+| spark.yarn.kerberos.relogin.period                | 1m                                           |                                                              |
+| spark.yarn.config.gatewayPath                     | none                                         |                                                              |
+| spark.yarn.config.replacementPath                 | none                                         | 参照 *spark.yarn.config.geteeayPath*                         |
+| spark.security.credentials.${service}.enabled     | true                                         |                                                              |
+| spark.yarn.rolledLog.includePattern               | none                                         | Java Regex 用于过滤与定义的规则匹配的日志文件，这些文件会以滚动的方式进行聚合。这个会使用 YARN 滚动日志聚合，这YARN 中可以配置 yarn-site.xml 文件中的 *yarn.nodemanager.log-aggregation.roll-monitoring-interval-seconds* 配置项。这个特性只能使用在 hadoop 2.6.4 以上的版本中。Spark log4j 的 appender 需要配置为 FileAppender,或其它可以在运行是移除文件的配置。基于 log4j 中配置的文件名(比如 spark.log)，用后应该设置可以包含所有需要聚合的日志的匹配规则(比如 spark*) |
+| spark.yarn.rolledLog.excludePattern               | none                                         | Java Regex 用来过滤跟排除规则匹配的日志文件，这些文件不会被聚合。如果日志文件名跟 exclude 和 include 都匹配，这个文件会被排除 |
+|                                                   |                                              |                                                              |
+
+### 重要提示
+
+- 核心请求在调度决策中是否得到相应，取决于使用的调度程序和配置方式
+- 在 cluster 模式，被 Spark executor 和 driver 使用的本地目录必须是通过 YARN 配置的目录(Hadoop YARN *yarn.nodemanager.local-dirs* 配置)。如果用户指定 *spark.local.dir* 则会被忽略。在client 模式，Spark executor 会使用 YARN 配置的本地目录，Spark deiver 会使用 *spark.local.dir* 配置的目录，这是因为在 client 模式 下 Spark driver 没有运行在 YARN 集群上，只有 Spark executor 运行在 YARN 集群上。
+- *--files* 和 *--archives* 支持类似于 hadoop 中的 `#`，比如，你可以指定 *--files localtest.txt#appSees.txt* , 这个会上传本地名为 *localtest.txt* 的文件到 HDFS，但是连接到 *appSees.txt* ，如果应用程序运行在 YARN，需要指定 *appSees.txt* 来访问这个文件。
+- 在 cluster 模式，如果通过 SparkContext.addJar 函数来访问本地文件，需要通过 *--jars* 先添加。如果访问的是 HDFS，HTTP，HTTPS 或 FTP 文件，则不需要通过 *--jars* 添加。
+
+### 配置外部的 Shuffle 服务
+
+在 YARN 集群上开启每个 NodeManager 的 Spark Shuffle 服务，可以通过下面的步骤：
+
+1. 通过 YARN 构建 Spark ，如果使用的预安装包，可以跳过这步
+2. 查找  *spark-\<version>-yarn-shuffle.jar* 的位置。如果是自己构建的 Spark , 应该是在 *$SPARK_HOME/common/network-yarn/target/scala-\<version>* 目录下, 如果使用的分布式，应该在 *yarn* 目录下
+3. 添加这个 jar 包到集群中所有的 NodeManager 中
+4. 在每个节点的 yarn-site.xml 文件中，添加 *spark_shuffle* 到 *yarn.nodemanager.aux-services*，然后设置 *yarn.nodemanager.aux-services.spark_shuffle.class* 为 *org.apache.spark.network.yarn.YarnShuffleService*
+5. 通过设置 etc/hadoop/yarn-env.sh 文件中的 *YARN_HEAPSIZE* 来增加 NodeManager 的堆内存(默认 1000)，防止在 shuffle 期间的垃圾回收问题
+6. 重启集群中所有的 NodeManager
+
+当运行 shuffle 服务在 YARN 时，可以使用下面这个配置：
+
+| Property Name                    | Default | Meaning                                                      |
+| -------------------------------- | ------- | ------------------------------------------------------------ |
+| spark.yarn.shuffle.stopOnFailure | false   | 在 Spark Shuffle 服务失败时是否停止 NodeManager。这个用来防止在 Spark Shuffle 服务没有的运行的 NodeManager 上运行应用程序造成的失败 |
+
+### 使用 Spark History 服务替代 Spark Web UI
+
+当 application UI 不能使用的时候，可以使用 Spark History 服务作为正在运行程序的 track URL，可以通过下面的步骤来设置 Spark History 服务：
+
+- 在应用程序边，设置 Spark 的 *spark.yarn.historyServer.allowTracking=true* 配置，这个会告诉 Spark 在application 不能使用的时候，使用 history 服务的 URL 作为 tracking URL
+- 在 Spark History 服务，添加 *org.apache.spark.deploy.yarn.YarnProxyRedirectFilter* 到 *spark.ui.filters* 配置
+
+> history 服务不会更新应用程序的状态
 
