@@ -1,14 +1,20 @@
 # HBase Shell
 
-## 进入HBase命令行：
+# 进入HBase命令行：
 
+```shell
+$ ./bin/hbase shell [OPTIONS]
 ```
-./hbase shell
-```
 
-## 表管理
+> OPTIONS:
+>
+> - -d, --debug, 设置日志级别为 DEBUG
+> - -h, --help, 帮助页面
+> - -n, --noninteractive, 
 
-- 查看表的列表
+# 表管理
+
+- 查看所有的表
 
   ```
   list
@@ -17,8 +23,8 @@
 - 创建表
 
   ```
-  create [tableName],
-  {NAME => [familyName],VERSIONS => [versions]},
+  create 'tableName',
+  {NAME => 'familyName',VERSIONS => [versions]},
   {...},
   ...
   ```
@@ -31,19 +37,26 @@
   {NAME => 'f2',VERSIONS => 2}
   ```
 
+- 查看表结构
+
+  ```
+  describe 'tableName'
+  ```
+
+  e.g.
+
+  ```
+  describe 't1'
+  ```
+
 - 删除表
 
   ```
   #先disable表
   disable [tableName]
+  
   #然后drop
   drop [tablename]
-  ```
-
-- 查看表的结构
-
-  ```
-  describe [tableName]
   ```
 
 - 修改表的结构
@@ -54,25 +67,25 @@
   disabel 'tableName'
   ```
 
-  - 添加列族
+  添加列族
 
-    ```
-    alter 'tableName', NAME => 'familyName'
-    ```
+  ```
+  alter 'tableName', NAME => 'familyName'
+  ```
 
-  - 删除列族
+  删除列族
 
-    ```
-    alter 'tableName',NAME => 'familyName',METHON => 'delete'
-    或
-    alter 'tableName','delete' => 'familyName'
-    ```
+  ```
+  alter 'tableName',NAME => 'familyName',METHON => 'delete'
+  或
+  alter 'tableName','delete' => 'familyName'
+  ```
 
-  - 修改列族版本号
+  修改列族版本号
 
-    ```
-    alter 'tableName',NAME => 'familyName',VRESIONS => 5
-    ```
+  ```
+  alter 'tableName',NAME => 'familyName',VRESIONS => 5
+  ```
 
   最后启用表
 
@@ -80,7 +93,7 @@
   enable 'tableName'
   ```
 
-## 表数据增删改查
+# 表数据增删改查
 
 - 添加数据
 
@@ -216,3 +229,7 @@
     ```
     truncate 'tableName'
     ```
+
+# 退出 Shell
+
+通过 `quit` 退出
