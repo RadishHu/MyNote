@@ -1,9 +1,13 @@
 # Hive整合HBase
 
-## 应用场景
+# 应用场景
 
 - 将ETL操作的数据存入HBase
 - HBase作为Hive的数据源
+
+# Storage Handlers
+
+关于 Storage Handlers 的介绍可以参照：https://cwiki.apache.org/confluence/display/Hive/StorageHandlers
 
 ## 配置环境
 
