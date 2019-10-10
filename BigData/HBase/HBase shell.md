@@ -14,7 +14,7 @@ $ ./bin/hbase shell [OPTIONS]
 
 # 表管理
 
-- 查看所有的表
+- 列出所有的表
 
   ```
   list
@@ -23,8 +23,10 @@ $ ./bin/hbase shell [OPTIONS]
 - 创建表
 
   ```
+  create 'tableName', 'columnFamilyName1', 'columnFamilyName2' ...
+  或
   create 'tableName',
-  {NAME => 'familyName',VERSIONS => [versions]},
+  {NAME => 'columntFamilyName1',VERSIONS => [versions]},
   {...},
   ...
   ```
@@ -32,6 +34,8 @@ $ ./bin/hbase shell [OPTIONS]
   e.g.
 
   ```
+  create 't1', 'f1', 'f2'
+  或
   create 't1',
   {NAME => 'f1',VERSIONS => 2},
   {NAME => 'f2',VERSIONS => 2}
@@ -40,23 +44,19 @@ $ ./bin/hbase shell [OPTIONS]
 - 查看表结构
 
   ```
+  desc 'tableName'
+  或
   describe 'tableName'
-  ```
-
-  e.g.
-
-  ```
-  describe 't1'
   ```
 
 - 删除表
 
   ```
-  #先disable表
-  disable [tableName]
+  #先 disable 表
+  disable 'tableName'
   
-  #然后drop
-  drop [tablename]
+  #然后 drop
+  drop 'tablename'
   ```
 
 - 修改表的结构
@@ -76,21 +76,40 @@ $ ./bin/hbase shell [OPTIONS]
   删除列族
 
   ```
-  alter 'tableName',NAME => 'familyName',METHON => 'delete'
-  或
   alter 'tableName','delete' => 'familyName'
+  或
+  alter 'tableName',NAME => 'familyName',METHON => 'delete'
   ```
 
-  修改列族版本号
+  修改列族版本数
 
   ```
-  alter 'tableName',NAME => 'familyName',VRESIONS => 5
+  alter 'tableName', {NAME => 'familyName',VRESIONS => 5}
   ```
 
   最后启用表
 
   ```
   enable 'tableName'
+  ```
+
+- 清空表数据
+
+  ```
+  truncate 'tableName'
+  ```
+
+- 查看表是否存在
+
+  ```
+  exists 'tableName'
+  ```
+
+- 查看表是否被禁用/启用
+
+  ```
+  is_disable 'tableName'
+  is_enable 'tableName'
   ```
 
 # 表数据增删改查
@@ -107,128 +126,144 @@ $ ./bin/hbase shell [OPTIONS]
   put 't1','rowkey001','f1:col1','value01'
   ```
 
-- 查询数据
+- 获取某一行数据
 
-  - 查询某行记录
-
-    ```
-    get 'tableName','rowkey','family:column',...
-    ```
-
-    e.g.
-
-    获取rowkey为rk001的所有信息
+  - 获取某一行所有数据
 
     ```
-    get 't1','rk001'
+    get 'tableName', 'rowkey'
     ```
 
-    获取rowkey为rk001，info列族的所有信息
+  - 获取某一行，某个列族的所有信息
 
     ```
-    get 't1','rk001','info'
+    get 'tableName','rowkey', 'columnFamily'
     ```
 
-    获取rowkey为rk001，info列族的name、age列标识符的信息
+  - 获取某一行，某一列的信息
 
     ```
-    get 't1','rk001','info:name','info:age'
+    get 'tableName', 'rowkey', 'columnFamily:column'
     ```
 
-    获取rowkey为rk0001，info、data列族的信息 
+  - 获取某一行，多个列族的信息
 
     ```
-    get 't1', 'rk0001', 'info', 'data'
-    get 't1', 'rk0001', {COLUMN => ['info', 'data']}
+    get 'tableName', 'rowkey', 'columnFamily1', 'columnFamily2'
+    get 'tableName', 'rowkey', {COLUMN => ['columnFamily1', 'columnFamily12']}
     ```
 
-    获取rowkey为rk0001，列族为info，版本号最新5个的信息 
+  - 获取某一行，最新 5个版本的数据
 
     ```
-    get 't1', 'rk0001', {COLUMN => 'info', VERSIONS => 5}
-    get 't1', 'rk0001', {COLUMN => 'info:name', VERSIONS => 5}
-    get 't1', 'rk0001', {COLUMN => 'info:name', VERSIONS => 5, TIMERANGE => [1392368783980, 1392380169184]}
+    get 'tableName', 'rowkey', {COLUMN => 'columnFamily', VERSIONS => 5}
+    get 'tableName', 'rowkey', {COLUMN => 'columnFamily:column', VERSIONS => 5}
+    get 'tableName', 'rowkey', {COLUMN => 'columnFamily:column', VERSIONS => 5, TIMERANGE => [1392368783980, 1392380169184]}
     ```
 
-    获取rowkey为rk0001，cell的值为zhangsan的信息 
+  - 获取某一行，cell 的值为指定值
 
     ```
-    get 't1', 'rk0001', {FILTER => "ValueFilter(=, 'binary:zhangsan')"}
+    get 'tableName', 'rowkey', {FILTER => "ValueFilter(=, 'binary:cellValue')"}
     ```
 
-    获取rowkey为rk0001，列标示符中含有a的信息
+  - 获取某一行，列标识符含有指定的信息
 
     ```
-    get 'people', 'rk0001', {FILTER => "(QualifierFilter(=,'substring:a'))"}
+    get 'tableName', 'rowkey', {FILTER => "(QualifierFilter(=,'substring:columnValue'))"}
     ```
 
   - 扫描表
 
-    ```
-    scan 'tableName' ,{COLUMN => 'family:column'...,LIMIT => num}
-    ```
-
-    e.g.
-
-    查询列族为info的记录，显示前5条数据
-
-    ```
-    scan 't1', {COLUMN => 'info'，LIMIT => 5}
-    ```
-
-    查询列族为info，列标识符为name的信息，并且版本最新的5个
-
-    ```
-    scan 't1',{COLUMN => 'info:name',VERSION => 5}
-    ```
-
-    查询列族为info和data，且列标识符中含有a字符的信息
-
-    ```
-    scan 't1',{COLUMN => ['info','data'],FILTER => "（QualifierFilter(=,'substring:a')）"}
-    ```
-
-    查询列族为info，rk范围是[rk001,rk003]的数据
-
-    ```
-    scan 't1',{COLUMN => 'info',STARTROW => 'rk001',ENDROW => 'rk003'}
-    ```
-
+    
+    
     查询表中rowkey以rk字符开头的
 
     ```
-    scan 't1',{FILTER => "PrefixFilter('rk')"}
+  scan 't1',{FILTER => "PrefixFilter('rk')"}
     ```
 
-    
+- 扫描表
 
+  - 获取全表数据
+
+    ```
+    scan 'tableName'
+    ```
+  
+- 获取指定列族的数据
+  
+  ```
+    scan 'tableName', {COLUMN => 'columnFamily'}
+    ```
+  
+- 获取多个列族的数据
+  
+  ```
+    scan 'tableName', {COLUMN => ['columnFamily1', 'columnFamily2']}
+    ```
+  
+  - 获取指定列的数据
+
+    ```
+  scan 'tableName', {COLUMN => 'columnFamily:column'}
+    ```
+  
+  - 获取多个列的数据
+  
+    ```
+    scan 'tableName', {COLUMN => ['columnFamily1:column', 'columnFamily2:column']}
+    ```
+  
+  - 获取列标识符中包含指定字符的数据
+  
+    ```
+    scan 'tableName', {COLUMN => 'columnFamily', FILTER => "(QualifierFilter(=,'substring:columnValue'))"}
+    ```
+  
+  - 获取 rowkey 范围在 [rowkey001, rowkey003) 内的数据
+  
+    ```
+    scan 'tableName', {STARTROW => 'rowkey001', ENDROW => 'rowkey003'}
+    ```
+  
+  - 查询 rowkey 以 'rk' 字符开头的数据
+  
+    ```
+    scan 'tableName', {FILTER => "PrefixFilter('rk')"}
+    ```
+  
+  - 限制显示的数量
+  
+    ```
+    scan 'tableName', {COLUMN => 'columnFamily', LIMIT => 5}
+    ```
+  
 - 删除数据
-
-  - 删除行中某个列值
-
-    ```
-    delete 'tableName','rowkey','family:column','timestamp'
-    #必须要指定列名
-    ```
-
-    e.g.删除表t1，rowkey001中的f1:col1的数据
-
-    ```
-    delete 't1','rowkey001','f1:col1'
-    ```
 
   - 删除行
 
     ```
-    deleteall 'table','rowkey'，'family:column','timestamp'
-    #可以不指定列名，删除整行数据
+    delete 'tableName', 'rowkey'
     ```
-
-  - 删除表中所有数据
-
+  
+- 删除行中某个列
+  
+  ```
+    delete 'tableName', 'rowkey', 'columnFamily:column'
     ```
+  
+- 删除表中所有数据
+  
+  ```
     truncate 'tableName'
     ```
+
+- 查询表的数据量
+
+  ```
+  count 'tableName'
+  ```
 
 # 退出 Shell
 
