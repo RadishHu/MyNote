@@ -392,11 +392,186 @@ export HBASE_HEAPSIZE=4G
 
 ### 推荐设置
 
-**zookeeper.session.timeout**
+- ZooKeeper 设置
 
-默认时长为 3 分钟，这意味着如果 一个服务挂掉，在 Master 注意到服务挂掉，并恢复启动前需要 3 分钟。需要把 timeout 降到 1 分钟甚至更低。在修改这个配置之前，确保 JVM GC 是可控的，否则，如果 GC 的时长超过了 timeout，可能会去掉 RegionServer。
+  **zookeeper.session.timeout**
 
-我们会把这个值设置的高一些，为了防止在大量导入时 RegionServer 挂掉 ，这通常是因为 JVM 没有调整，并且正在运行很长时间的 GC 暂停。
+  默认时长为 3 分钟，这意味着如果 一个服务挂掉，在 Master 注意到服务挂掉，并恢复启动前需要 3 分钟。需要把 timeout 降到 1 分钟甚至更低。在修改这个配置之前，确保 JVM GC 是可控的，否则，如果 GC 的时长超过了 timeout，可能会去掉 RegionServer。
 
+  我们会把这个值设置的高一些，为了防止在大量导入时 RegionServer 挂掉 ，这通常是因为 JVM 没有调整，并且正在运行很长时间的 GC 暂停。
 
+- HDFS 设置
+
+  **dfs.datanode.failed.volumes.tolerated**
+
+  在 DataNode 停止服务前允许失败的卷的数量，默认值为 0，也就是任何卷失败都会导致 datanode 停止服务。这个值可以设置为可选磁盘的一半。
+
+  **hbase.regionserver.handler.count**
+
+  这个配置定义了一直开启的用来回应用户请求的线程数。经验法则是，当每个请求的负载比较大时(big put, 使用大量内存进行扫描)，可以设置的低一些；当请求的负载比较小时(gets, small puts, ICV, 删除)，可以设置的高一些。总的查询个数是通过 **hbase.ipc.server.max.callqueue.size** 进行设置的。
+
+  如果客户端的请求负载比较低，可以设置为最大值，典型的示例是一个用于 web 服务的集群，查询操作比写入操作要更多。但是这个值设置太高的话，发生在一台 region 服务上的 put 操作会给内存带来太大的压力，甚至造成内存溢出。一个运行在低内存上的 RegionServer 可能回到值频繁的 GC，直到 GC 暂停变得非常明显 (原因是不管 GC 如何尝试，所有的内存都用来保持请求的负载不崩溃)。一段时间后，整个集群的吞吐量都会受到影响，因为所有请求 RegionServer 都会花费很长的时间来处理，这个会使问题变得更加严重。
+
+  可以通过每个 RegionServer 上的日志来查看 handler 的所少，可以参考 [rpc.logging](https://hbase.apache.org/2.1/book.html#rpc.logging)
+
+- 压缩
+
+  可以开启 ColumnFamily 压缩，有几种方式是几乎无损耗的，通过减少 StoreFile 的大小来减少 I/O，从而提高性能。可以查看 [compression](https://hbase.apache.org/2.1/book.html#compression) 了解更多信息。
+
+- 设置 WAL 文件的大小和数量
+
+  HBase 通过 WAL 来恢复没有及时刷新到磁盘的内存数据。WAL 文件的大小应该小于 HDFS 块的大小 (默认情况下，HDFS 块大小为 64 MB，WAL 文件大概是 60 MB)。
+
+  HBase 也限制了 WAL 文件的数量，为了确保恢复过程中不需要去重置太多的数据，这个需要根据内存大小进行设置。比如，有 16 GB 的 Region Service 堆内存，默认内存大小设置为 0.4，WAL 文件默认大小为 60 MB，WAL 文件的个数大概是 109 个。然而内存并不是在所有时间都会占满，WAL 文件数也会更少。
+
+# 数据模型
+
+在 HBase 中，数据存储在 table 中，table 中包含行和列。这跟关系型数据库 (RDBMS) 中的属于有些重叠，但是它们并没有什么关联，可以把 HBase 的 table 想成一个多维的 map。
+
+HBase 数据模型属于：
+
+- Table
+
+  table 由多个 Row 组成
+
+- Row
+
+  Row 包含 row key 和 一个或多个 column，row 在存储过程中会根据 row key 的字母顺序进行存储，因此 row key 的设计十分重要，row key 的设计目的是把相互关联的 row 存储在一块。一个常见的 row key 设计是使用网站的域名，并把域名前后颠倒存储(org.apache.www, org.apache.mial, org.apache.jira)，这样所有 apache 的域名都会存储在一起，而不是根据子域名的首字母进行分散存储。
+
+- Column
+
+  Column 包含一个 columnt family 和 column 修饰符，通过 `:` 分隔
+
+- Column Family (列族)
+
+  处于性能考虑，Column Family 实际上是将一组列和其值并置在一起。每个 cloumn family 都有一系列的属性，比如，它的值是否应该缓存在内存中，数据如何进行压缩，row key 是否进行序列化等。每行都有相同的 column families，尽管有些 row 可能不会在 column family 中存储任何数据。
+
+- Column Qualifier
+
+  列修饰符是添加到 column family 来给数据添加索引，给定一个 columnt family *content*，一个列修饰符可能是 *content:html* ，另一个列修饰符可能是 *content:pdf*。column family 在建表时已经固定下来，列修饰符是可变的，并且在 row  之间也可以是不同的。
+
+- Cell
+
+  Cell 由 row、 columnt family、 column qualifier、 值和时间戳组成，时间戳代表值的版本。
+
+- Timestamp
+
+  每个值都会带有一个时间戳，用来标识值的版本。时间戳代表数据写入时 RegionServer 的时间，也可以在写入数据时指定不同的时间戳。
+
+## 概念视图
+
+通过一个示例来说明 HBase 的表结构：
+
+有一张表叫 **webtable**, 它包含两行：**com.cnn.www** 和 **com.example.www**, 三个列族：**contents**、**anchor** 和 **people**。第一行 (com.cnn.www) ，anchor 列族包含两列：**anchor:cssnsi.com** 和 **anchor:my.look.ca**, contents 列族包含一列：**contents:html**。con.cnn.www row-key 有 5 个版本，com.example.www row-key 有 1 个版本。
+
+webtable
+
+| Row Key           | Time Stamp | ColumnFamily `contents`   | ColumnFamily `anchor`         | ColumnFamily `people`      |
+| :---------------- | :--------- | :------------------------ | :---------------------------- | :------------------------- |
+| "com.cnn.www"     | t9         |                           | anchor:cnnsi.com = "CNN"      |                            |
+| "com.cnn.www"     | t8         |                           | anchor:my.look.ca = "CNN.com" |                            |
+| "com.cnn.www"     | t6         | contents:html = "<html>…" |                               |                            |
+| "com.cnn.www"     | t5         | contents:html = "<html>…" |                               |                            |
+| "com.cnn.www"     | t3         | contents:html = "<html>…" |                               |                            |
+| "com.example.www" | t5         | contents:html = "<html>…" |                               | people:author = "John Doe" |
+
+> Column 名字是由 prefix 和 qualifier 组成，比如：contents:html
+
+表中空的 cell 并不会占用空间，实际上并不存在。以表格的形式来展示 HBase 的数据有些不准确，一下以多维 map 的格式来展示相同的数据：
+
+```json
+{
+  "com.cnn.www": {
+    contents: {
+      t6: contents:html: "<html>..."
+      t5: contents:html: "<html>..."
+      t3: contents:html: "<html>..."
+    }
+    anchor: {
+      t9: anchor:cnnsi.com = "CNN"
+      t8: anchor:my.look.ca = "CNN.com"
+    }
+    people: {}
+  }
+  "com.example.www": {
+    contents: {
+      t5: contents:html: "<html>..."
+    }
+    anchor: {}
+    people: {
+      t5: people:author: "John Doe"
+    }
+  }
+}
+```
+
+## 物理视图
+
+HBase 是通过 column family 来进行存储的，一个新的 column 标识可以在任何时候添加到已经存在的列族中。
+
+ColumnFamily **anchor**
+
+| Row Key       | Time Stamp | Column Family `anchor`        |
+| :------------ | :--------- | :---------------------------- |
+| "com.cnn.www" | t9         | anchor:cnnsi.com = "CNN"      |
+| "com.cnn.www" | t8         | anchor:my.look.ca = "CNN.com" |
+
+ColumnFamily **contents**
+
+| Row Key       | Time Stamp | ColumnFamily `contents:`  |
+| :------------ | :--------- | :------------------------ |
+| "com.cnn.www" | t6         | contents:html = "<html>…" |
+| "com.cnn.www" | t5         | contents:html = "<html>…" |
+| "com.cnn.www" | t3         | contents:html = "<html>…" |
+
+概念视图中展示的空 cell 没有保存，如果请求 contents:html 列的 t8 版本的值会返回 no，请求 anchor:my.look.ca 列的 t9 版本的值也会返回 no。如果没有指定版本，会返回指定列的最新的值。如果指定多个版本，也会返回最新的版本，因为是根据时间戳的降序排列的。
+
+## Namespace
+
+命名空间是表的逻辑分区，这种抽象为下面讲的多用户功能奠定了基础：
+
+- Quota Management，限定命名空间可以消耗的资源 (比如：regions, tables)
+- Namespace Security Administration，提供另一个级别的安全管理
+- Region server group，把 namespace 或表绑定在 RegionServer 的子集上，保证粗粒度的隔离
+
+**Namespace management**
+
+命名空间可以被创建、移除和修改，命名空间实在创建表的时候通过指定表名来决定的：
+
+```
+<table namespace>:<table qualifier>
+```
+
+示例：
+
+```
+# Create a namespace
+create_namespace 'my_ns'
+
+# Create my_table in my_ns namespace
+create 'my_na:my_table', 'fam'
+
+# drop  namespace
+drop_namespace 'my_ns'
+
+# alter namespace
+alter_namespace 'my_ns', {METHOD => 'set', 'PROPERTY_NAME' => 'PROPERTY_VALUE'}
+```
+
+**Predefined namespace**
+
+有两种预定义命名空间:
+
+- hbase，系统命名空间，用来包含 HBase 本身的表
+- default, 没有明确指定命名空间的表会放在这个命名空间中
+
+示例：
+
+```
+# namespace=foo, table qualifier=bar
+create 'foo:bar', 'fam'
+
+# namespace=default, table qualifier=bar
+create 'bar', 'fam'
+```
 
