@@ -10,7 +10,7 @@
 
 **青铜时代**
 
-2003 年，MapReduce 的诞生标志着超大规模数据处理的第一次革命，而开创青铜时代的正式这篇论文《MapReduce: Simplified Data Processing on Large Clusters》。
+2003 年，MapReduce 的诞生标志着超大规模数据处理的第一次革命，而开创青铜时代的正是这篇论文《MapReduce: Simplified Data Processing on Large Clusters》。
 
 ![](https://static001.geekbang.org/resource/image/ae/61/ae9083e7b1f5cdd97deda1c8a1344861.png)
 
@@ -42,11 +42,11 @@ Spark、Storm、flink等计算框架的出现标志着青铜时代的终结和�
 
 在单台机器上实现归并排序的时候，只需要在递归函数内实现数据分组以及合并，而在多台机器之间分配数据的时候，递归函数内除了分组及合并，还要负责把数据分发到某台机器上。
 
-![](https://static001.geekbang.org/resource/image/78/31/78eefc6b61bad62f257f2b5e4972f031.jpg)
+![](C:\Users\hu\Desktop\78eefc6b61bad62f257f2b5e4972f031.jpg)
 
 上述的分布式架构可以转换为类似的 MapReduce 的架构：
 
-![](https://static001.geekbang.org/resource/image/08/5a/08155dd375f7b049424a6686bcb6475a.jpg)
+![](C:\Users\hu\Desktop\08155dd375f7b049424a6686bcb6475a.jpg)
 
 这里主要由三个步骤用到了分治思想：
 
@@ -187,6 +187,22 @@ Spark 区分宽依赖和窄依赖出于两点考虑：
 
 - 窄依赖可以支持在同一个节点上链式执行多条命令，例如在执行 map 后，紧接着执行 filter。宽依赖需要所有的父分区都是可用的，可能还需要进行跨节点传输。
 - 从失败恢复的角度考虑，窄依赖的恢复更高效，因为它只需要重新计算丢失的分区即可，而宽依赖牵涉到 RDD 各级的多个父分区。
+
+**Checkpoint**
+
+如果一个 RDD 的依赖链比较长，而且中间结果有多个 RDD 出现故障的话，进行恢复可能会非常消耗时间和计算资源。而 checkpoint 的引入，就是为了优化这种情况下的数据恢复。
+
+在计算过程中，对于一些计算过程比较耗时的 RDD，可以把它缓存至硬盘或 HDFS 中，标记这个 RDD 有检查点处理过，并且清空它的所有依赖关系，同时给它新建一个依赖于 CheckpointRDD 的依赖关系，CheckpointRDD 可以用来从硬盘中读取 RDD 并生成新的分区信息。
+
+**Storage Level**
+
+Storage Level 是一个枚举类型，用来记录 RDD 持久化的存储级别，常用的有以下几个：
+
+**Iterator**
+
+迭代函数 (Iterator) 和计算函数 (Compute) 用来表示 RDD 怎样通过父 RDD 计算得到的。
+
+迭代函数会首先判断缓存中是否有想要计算的 RDD，如果有就直接读取，如果没有，就查找想要计算的 RDD 是否被检查点处理过，如果有，就直接读取，如果没有，就调用计算函数向上递归，查找 RDD 进行计算。
 
 
 
