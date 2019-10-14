@@ -521,7 +521,7 @@ GET _cluster/health
 **Get 文档**
 
 ```
-GET users/_doc/1
+GET my_index/_doc/1
 ```
 
 - 找到文档，返回 HTTP 200
