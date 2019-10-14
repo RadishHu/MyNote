@@ -84,7 +84,7 @@ $ ./bin/hbase shell [OPTIONS]
   修改列族版本数
 
   ```
-  alter 'tableName', {NAME => 'familyName',VRESIONS => 5}
+  alter 'tableName', {NAME => 'familyName',VERSIONS => 5}
   ```
 
   最后启用表
@@ -173,16 +173,6 @@ $ ./bin/hbase shell [OPTIONS]
     get 'tableName', 'rowkey', {FILTER => "(QualifierFilter(=,'substring:columnValue'))"}
     ```
 
-  - 扫描表
-
-    
-    
-    查询表中rowkey以rk字符开头的
-
-    ```
-  scan 't1',{FILTER => "PrefixFilter('rk')"}
-    ```
-
 - 扫描表
 
   - 获取全表数据
@@ -190,21 +180,21 @@ $ ./bin/hbase shell [OPTIONS]
     ```
     scan 'tableName'
     ```
-  
-- 获取指定列族的数据
+    
+  - 获取指定列族的数据
   
   ```
     scan 'tableName', {COLUMN => 'columnFamily'}
-    ```
+  ```
   
-- 获取多个列族的数据
+  - 获取多个列族的数据
   
   ```
     scan 'tableName', {COLUMN => ['columnFamily1', 'columnFamily2']}
-    ```
+  ```
   
   - 获取指定列的数据
-
+  
     ```
   scan 'tableName', {COLUMN => 'columnFamily:column'}
     ```
@@ -251,13 +241,13 @@ $ ./bin/hbase shell [OPTIONS]
   
   ```
     delete 'tableName', 'rowkey', 'columnFamily:column'
-    ```
+  ```
   
 - 删除表中所有数据
   
   ```
     truncate 'tableName'
-    ```
+  ```
 
 - 查询表的数据量
 

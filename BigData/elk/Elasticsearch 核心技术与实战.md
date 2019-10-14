@@ -79,7 +79,7 @@
     编辑 /etc/security/limits.conf 文件，追加以下内容：
 
     ```conf
-    * soft nofile 65535
+    * soft nofile 65536
     * hard nofile 262144
     * soft nproc 32000
     * hard nproc 32000
