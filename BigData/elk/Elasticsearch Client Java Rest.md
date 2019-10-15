@@ -1,13 +1,15 @@
+# Rest Client
+
 # 概述
 
 Java Rest Client 有两种：
 
-- 低级 Rest Client：通过 **http** 跟 Elasticsearch 连接，它跟所有的 Elasticsearch 版本兼容。
-- 高级 Rest Client：基于低级 client，暴露一些方法
+- Low-level Client：通过 **http** 跟 Elasticsearch 连接，它跟所有的 Elasticsearch 版本兼容。
+- Hight-level Client：基于低级 client，暴露一些方法
 
-# 低级 Rest Client
+# Low-level Client
 
-### Maven Repository
+## Maven Repository
 
 - Mavent configuration
 
@@ -27,7 +29,7 @@ Java Rest Client 有两种：
   }
   ```
 
-### Shading
+## Shading
 
 - Maven configuration
 
@@ -80,7 +82,7 @@ Java Rest Client 有两种：
   }
   ```
 
-### 初始化
+## 初始化
 
 `RestClient` 实例可以通过对应的 `RestClientBuilder` 来创建，通过 `RestClient.builder(HttpHost...)` 方法：
 
@@ -158,7 +160,7 @@ builder.setHttpClientConfigCallback(new HttpClientConfigCallback() {
 
 > 设置一个回调函数，修改 http client 配置 (比如：通过 ssl 加密，或者所有 [`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`](http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html) 允许设置的参数)
 
-### 发送请求
+## 发送请求
 
 可以通过 `performRequest` 或 `performRequestAsync` 来发送请求：
 
@@ -285,7 +287,7 @@ for (int i = 0; i < documents.length; i++) {
 latch.await();
 ```
 
-### 读取 Response
+## 读取 Response
 
 ```java
 Response response = restClient.performRequest(new Request("GET", "/"));
@@ -306,7 +308,7 @@ String responseBody = EntityUtils.toString(response.getEntity());
 >
 > getEntity()，获取响应体
 
-### 配置
+## 配置
 
 **timeout**
 
@@ -351,7 +353,7 @@ RestClientBuilder builder = RestClient.builder(
     });
 ```
 
-### Sniffer
+## Sniffer
 
 自动从正在运行的 Elasticsearch 集群获取节点，并这设置到 `RestClient` 实例上。
 
@@ -419,6 +421,708 @@ Sniffer sniffer = Sniffer.builder(restClient)
     .build();
 sniffOnFailureListener.setSniffer(sniffer);
 ```
+
+Sniffer 在返回 Elasticsearch 集群节点信息时，只会返回 `host:port` 对，不会返回连接的协议，默认使用 `http` 协议。可以通过下面的方法来使用 `https` 协议：
+
+```java
+RestClient restClient = RestClient.builder(
+        new HttpHost("localhost", 9200, "http"))
+        .build();
+NodesSniffer nodesSniffer = new ElasticsearchNodesSniffer(
+        restClient,
+        ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
+        ElasticsearchNodesSniffer.Scheme.HTTPS);
+Sniffer sniffer = Sniffer.builder(restClient)
+        .setNodesSniffer(nodesSniffer).build();
+```
+
+# Low-level Client
+
+高级 Rest Client 是对低级 Client 进行封装
+
+## Maven Repository
+
+- Maven configuration
+
+  ```xml
+  <dependency>
+      <groupId>org.elasticsearch.client</groupId>
+      <artifactId>elasticsearch-rest-high-level-client</artifactId>
+      <version>6.5.4</version>
+  </dependency>
+  ```
+
+- Gradle configuration
+
+  ```gradle
+  dependencies {
+      compile 'org.elasticsearch.client:elasticsearch-rest-high-level-client:6.5.4'
+  }
+  ```
+
+## 初始化
+
+创建 `RestHighLevelClient` 实例：
+
+```java
+RestHighLevelClient client = new RestHighLevelClient(
+        RestClient.builder(
+                new HttpHost("localhost", 9200, "http"),
+                new HttpHost("localhost", 9201, "http")));
+```
+
+High-level client 内部会创建 low-level client 来执行请求，low-level client 会维护一个连接池和多个线程，因此使用完后需要关闭它：
+
+```java
+client.close()
+```
+
+## RequestOptions
+
+`RestHigthLevelClient` 可以接收一个 `RequestOptions` 来定制请求参数
+
+## Document API
+
+### Index API
+
+**IndexRequest**
+
+```java
+IndexRequest request = new IndexRequest(
+        "posts", 
+        "doc",  
+        "1");   
+String jsonString = "{" +
+        "\"user\":\"kimchy\"," +
+        "\"postDate\":\"2013-01-30\"," +
+        "\"message\":\"trying out Elasticsearch\"" +
+        "}";
+request.source(jsonString, XContentType.JSON);
+```
+
+> 参数说明：
+>
+> "posts"，Index 的名字
+>
+> "Type"，类型
+>
+> "1"，Document id
+>
+> jsonString，以 `String` 格式来提供 Document 的数据
+
+**Document source**
+
+可以以多种形式来提供 Document 的数据，上面展示了 `String` 格式。
+
+ `Map` 格式的数据：
+
+```java
+Map<String, Object> jsonMap = new HashMap<>();
+jsonMap.put("user", "kimchy");
+jsonMap.put("postDate", new Date());
+jsonMap.put("message", "trying out Elasticsearch");
+IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
+        .source(jsonMap); 
+```
+
+> `Map` 格式的数据最终会自动转换为 `JSON` 格式
+
+`XContentBuilder` 格式的数据：
+
+```java
+XContentBuilder builder = XContentFactory.jsonBuilder();
+builder.startObject();
+{
+    builder.field("user", "kimchy");
+    builder.timeField("postDate", new Date());
+    builder.field("message", "trying out Elasticsearch");
+}
+builder.endObject();
+IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
+        .source(builder);
+```
+
+`K-V` 对象：
+
+```java
+IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
+        .source("user", "kimchy",
+                "postDate", new Date(),
+                "message", "trying out Elasticsearch");
+```
+
+**可选的参数**
+
+- Routing
+
+  ```java
+  request.routing("routing");
+  ```
+
+- Parnet
+
+  ```java
+  request.parent("parent");
+  ```
+
+- Timeout
+
+  ```java
+  request.timeout(TimeValue.timeValueSeconds(1));
+  request.timeout("1s")
+  ```
+
+  > 等待主分片变为可用的超时时间
+
+- Refresh policy
+
+  ```java
+  request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); 
+  request.setRefreshPolicy("wait_for"); 
+  ```
+
+- Version
+
+  ```java
+  request.versionType(VersionType.EXTERNAL);
+  ```
+
+- Version type
+
+  ```java
+  request.opType(DocWriteRequest.OpType.CREATE); 
+  request.opType("create"); 
+  ```
+
+- pipeline
+
+  ```java
+  request.setPipeline("pipeline")
+  ```
+
+**发送请求**
+
+- 发送同步请求
+
+  ```java
+  IndexResponse indexResponse = client.index(request, RequestOptions.DEFAULT);
+  ```
+
+- 发送异步请求
+
+  ```java
+  client.indexAsync(request, RequestOptions.DEFAULT, new ActionListener<IndexResponse>() {
+  
+              @Override
+              public void onResponse(IndexResponse indexResponse) {
+                  System.out.println("请求成功");
+              }
+  
+              @Override
+              public void onFailure(Exception e) {
+                  System.out.println("请求发送异常");
+              }
+          });
+  ```
+
+**Index Response**
+
+可以从 `IndexResponse` 中获取以下信息：
+
+```java
+String index = indexResponse.getIndex();
+String type = indexResponse.getType();
+String id = indexResponse.getId();
+long version = indexResponse.getVersion();
+if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+    // 1. document 是第一次被创建
+} else if (indexResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+    // 2. document 被更新
+}
+ReplicationResponse.ShardInfo shardInfo = indexResponse.getShardInfo();
+if (shardInfo.getTotal() != shardInfo.getSuccessful()) {
+    // 3. 成功的分片数小于总分片数
+}
+if (shardInfo.getFailed() > 0) {
+    for (ReplicationResponse.ShardInfo.Failure failure :
+            shardInfo.getFailures()) {
+        String reason = failure.reason(); 
+        // 4. 处理潜在的失败
+    }
+}
+```
+
+如果存在版本冲突，会抛出一个 `ElasticsearchException` 错：
+
+```java
+IndexRequest request = new IndexRequest("posts", "doc", "1")
+        .source("field", "value")
+        .version(1);
+try {
+    IndexResponse response = client.index(request, RequestOptions.DEFAULT);
+} catch(ElasticsearchException e) {
+    if (e.status() == RestStatus.CONFLICT) {
+        // 存在版本冲突
+    }
+}
+```
+
+> 在发送请求时指定了 version，但是 document 的版本号不一样
+
+如果使用的 `create` 操作，一个 index、type 和 id 都相同的 document 已经存在，也会报 `ElasticsearchException` 错：
+
+```java
+IndexRequest request = new IndexRequest("posts", "doc", "1")
+        .source("field", "value")
+        .opType(DocWriteRequest.OpType.CREATE);
+try {
+    IndexResponse response = client.index(request, RequestOptions.DEFAULT);
+} catch(ElasticsearchException e) {
+    if (e.status() == RestStatus.CONFLICT) {
+        // 存下相同的 document
+    }
+}
+```
+
+### Get API
+
+**Get Request**
+
+```java
+GetRequest getRequest = new GetRequest(
+        "posts", 
+        "doc",  
+        "1");
+```
+
+> "posts"，index 名字
+>
+> "doc"，document 类型
+>
+> "1"，document id
+
+**可选参数**
+
+- 禁用 source 检索，默认是开启的
+
+  ```java
+  request.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+  ```
+
+- 配置包含/不包含特定字段的 source
+
+  ```java
+  String[] includes = new String[]{"message", "*Date"};
+  String[] excludes = Strings.EMPTY_ARRAY;
+  FetchSourceContext fetchSourceContext =
+          new FetchSourceContext(true, includes, excludes);
+  request.fetchSourceContext(fetchSourceContext);
+  ```
+
+- 配置特定存储字段的检索
+
+  ```java
+  request.storedFields("message"); 
+  GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
+  String message = getResponse.getField("message").getValue(); 
+  ```
+
+- Routing
+
+  ```java
+  request.routing("routing");
+  ```
+
+- Parent
+
+  ```java
+  request.parent("parent");
+  ```
+
+- Preference
+
+  ```java
+  request.preference("preference");
+  ```
+
+- realtime
+
+  ```java
+  request.realtime(false);
+  ```
+
+- 设置在检索 document 之前刷新
+
+  ```java
+  request.refresh(true);
+  ```
+
+  > 默认为 false
+
+- Version
+
+  ```java
+  request.version(2);
+  ```
+
+- Version type
+
+  ```java
+  request.versionType(VersionType.EXTERNAL);
+  ```
+
+**发送请求**
+
+- 发送同步请求
+
+  ```java
+  GetResponse getResponse = client.get(getRequest, RequestOptions.DEFAULT);
+  ```
+
+- 发送异步请求
+
+  ```java
+  GetResponse response = client.get(getRequest, RequestOptions.DEFAULT);
+          client.getAsync(getRequest, RequestOptions.DEFAULT, new ActionListener<GetResponse>() {
+              @Override
+              public void onResponse(GetResponse documentFields) {
+                  
+              }
+  
+              @Override
+              public void onFailure(Exception e) {
+  
+              }
+          });
+  ```
+
+**Get Response**
+
+```java
+String index = getResponse.getIndex();
+String type = getResponse.getType();
+String id = getResponse.getId();
+if (getResponse.isExists()) {
+    long version = getResponse.getVersion();
+    String sourceAsString = getResponse.getSourceAsString();        
+    Map<String, Object> sourceAsMap = getResponse.getSourceAsMap(); 
+    byte[] sourceAsBytes = getResponse.getSourceAsBytes();          
+} else {
+    // 没有查找到 Document
+}
+```
+
+当要查找的 index 不存在时会抛出 `ElasticsearchException` 错：
+
+```java
+GetRequest request = new GetRequest("does_not_exist", "doc", "1");
+try {
+    GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
+} catch (ElasticsearchException e) {
+    if (e.status() == RestStatus.NOT_FOUND) {
+        // index 不存在
+    }
+}
+```
+
+当请求指定的 document 版本与真实的版本号不一致时，也会报错：
+
+```java
+try {
+    GetRequest request = new GetRequest("posts", "doc", "1").version(2);
+    GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
+} catch (ElasticsearchException exception) {
+    if (exception.status() == RestStatus.CONFLICT) {
+        // 版本号不一致
+    }
+}
+```
+
+### Exists API
+
+如果 document 存在则返回 **true**，如果不存在则返回 **false**。
+
+**Exists Request**
+
+`exists()` 使用的是 `GetRequest`，`GetRequest` 的所有可算参数都可以使用在这里：
+
+```java
+GetRequest getRequest = new GetRequest(
+    "posts", 
+    "doc",   
+    "1");    
+getRequest.fetchSourceContext(new FetchSourceContext(false)); 
+getRequest.storedFields("_none_");  
+```
+
+> 因为 `exists()` 返回的 **true** 或 **false**，所以推荐关闭 **_source** 和 stored fields
+
+**发送请求**
+
+- 发送同步请求
+
+  ```java
+  boolean exists = client.exists(getRequest, RequestOptions.DEFAULT);
+  ```
+
+- 发送异步请求
+
+  ```java
+  client.existsAsync(getRequest, RequestOptions.DEFAULT, new ActionListener<Boolean>() {
+              @Override
+              public void onResponse(Boolean aBoolean) {
+                  
+              }
+  
+              @Override
+              public void onFailure(Exception e) {
+  
+              }
+          });
+  ```
+
+### Delete API
+
+**Delete Request**
+
+```java
+DeleteRequest request = new DeleteRequest(
+        "posts",    
+        "doc",      
+        "1");
+```
+
+**可算参数**
+
+- Routing
+
+  ```java
+  request.routing("routing");
+  ```
+
+- Parent
+
+  ```java
+  request.parent("parent");
+  ```
+
+- Timeout
+
+  ```java
+  request.timeout(TimeValue.timeValueMinutes(2)); 
+  request.timeout("2m");
+  ```
+
+- 刷新策略
+
+  ```java
+  request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); 
+  request.setRefreshPolicy("wait_for");
+  ```
+
+- Version
+
+  ```java
+  request.version(2);
+  ```
+
+- Version Type
+
+  ```java
+  request.versionType(VersionType.EXTERNAL);
+  ```
+
+**发送请求**
+
+- 发送同步请求
+
+  ```java
+  DeleteResponse deleteResponse = client.delete(
+          request, RequestOptions.DEFAULT);
+  ```
+
+- 发送异步请求
+
+  ```java
+  client.deleteAsync(request, RequestOptions.DEFAULT, new ActionListener<DeleteResponse>() {
+              @Override
+              public void onResponse(DeleteResponse deleteResponse) {
+                  
+              }
+  
+              @Override
+              public void onFailure(Exception e) {
+  
+              }
+          });
+  ```
+
+**Delete Response**
+
+```java
+String index = deleteResponse.getIndex();
+String type = deleteResponse.getType();
+String id = deleteResponse.getId();
+long version = deleteResponse.getVersion();
+ReplicationResponse.ShardInfo shardInfo = deleteResponse.getShardInfo();
+if (shardInfo.getTotal() != shardInfo.getSuccessful()) {
+    // 处理成功分片数小于总分片数的情况
+}
+if (shardInfo.getFailed() > 0) {
+    for (ReplicationResponse.ShardInfo.Failure failure :
+            shardInfo.getFailures()) {
+        String reason = failure.reason(); 
+        // 处理潜在的失败情况
+    }
+}
+```
+
+处理要删除的 document 不存在的情况：
+
+```java
+if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+    // 处理要删除的 document 不存在的情况
+}
+```
+
+请求的 document 版本跟正式版本冲突时，会抛出 `ElasticsearchException` 错：
+
+```java
+try {
+    DeleteResponse deleteResponse = client.delete(
+            new DeleteRequest("posts", "doc", "1").version(2),
+            RequestOptions.DEFAULT);
+} catch (ElasticsearchException exception) {
+    if (exception.status() == RestStatus.CONFLICT) {
+        // 版本冲突
+    }
+}
+```
+
+### Update API
+
+**Update Request**
+
+```java
+UpdateRequest request = new UpdateRequest(
+        "posts", 
+        "doc",  
+        "1");
+```
+
+Update API 可以通过 script 或一个局部的 document 来更新一个已经存在 document
+
+**通过 Script 更新**
+
+- inline script
+
+  ```java
+  Map<String, Object> parameters = singletonMap("count", 4); 
+  
+  Script inline = new Script(ScriptType.INLINE, "painless",
+          "ctx._source.field += params.count", parameters);  
+  request.script(inline);
+  ```
+
+- stored script
+
+  ```java
+  Script stored = new Script(
+          ScriptType.STORED, null, "increment-field", parameters);  
+  request.script(stored);
+  ```
+
+**通过局部的 document 更新**
+
+- JSON 格式的字符串
+
+  ```java
+  UpdateRequest request = new UpdateRequest("posts", "doc", "1");
+  String jsonString = "{" +
+          "\"updated\":\"2017-01-01\"," +
+          "\"reason\":\"daily update\"" +
+          "}";
+  request.doc(jsonString, XContentType.JSON);
+  ```
+
+- JSON 格式的 Map
+
+  ```java
+  Map<String, Object> jsonMap = new HashMap<>();
+  jsonMap.put("updated", new Date());
+  jsonMap.put("reason", "daily update");
+  UpdateRequest request = new UpdateRequest("posts", "doc", "1")
+          .doc(jsonMap);
+  ```
+
+- `XContentBuilder` 对象
+
+  ```java
+  XContentBuilder builder = XContentFactory.jsonBuilder();
+  builder.startObject();
+  {
+      builder.timeField("updated", new Date());
+      builder.field("reason", "daily update");
+  }
+  builder.endObject();
+  UpdateRequest request = new UpdateRequest("posts", "doc", "1")
+          .doc(builder);
+  ```
+
+- K-V 对象
+
+  ```java
+  UpdateRequest request = new UpdateRequest("posts", "doc", "1")
+          .doc("updated", new Date(),
+               "reason", "daily update");
+  ```
+
+**Upserts**
+
+如果要更新的 document 不存在，那需要把这个 document 插入，可以使用 `upsert` 方法：
+
+```java
+String jsonString = "{\"created\":\"2017-01-01\"}";
+request.upsert(jsonString, XContentType.JSON);
+```
+
+> 要更新的 document 的内容可以使用  String, Map, XContentBuilder, K-V 对象
+
+**可选参数**
+
+- Routing
+
+  ```java
+  request.routing("routing");
+  ```
+
+- Parent
+
+  ```
+  request.parent("parent");
+  ```
+
+- Timeout
+
+  ```java
+  request.timeout(TimeValue.timeValueSeconds(1)); 
+  request.timeout("1s");
+  ```
+
+- 刷新策略
+
+  ```java
+  request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); 
+  request.setRefreshPolicy("wait_for");
+  ```
+
+  
+
+
+
+
+
+
 
 
 
