@@ -620,27 +620,268 @@ POST kibana_sample_data_ecommerce/_msearch
 | 4xx          | 请求体格式有错     |
 | 500          | 集群内部错误       |
 
+# 12 倒排索引
 
+- 正排索引
+- 倒排索引
 
+## 倒排索引的组成
 
+倒排索引包含两部分：
 
+- 单词词典 (Term Dictionary)，记录所有文档的单词，记录单词到倒排列表的关联关系。单词词典一般比较大，可以通过 B+ 树或哈希拉链法实现
+- 倒排列表 (Posting List)，记录单词对应的文档结合，由倒排索引项 (Posting) 组成：
+  - 文档 ID
+  - 词频 TF，该单词在文档中出现的次数，用于相关性评分
+  - 位置 (Position)，单词在文档中分词的位置，用于语句搜索 (phrase query)
+  - 偏移 (Offset)，记录单词的开始和结束位置，实现高亮显示
 
+## Elasticsearch 的倒排索引
 
+Elasticsearch 的 JSON 文档中每个字段，都有自己的倒排索引
 
+在 Mapping 中可以指定对某些字段不做索引，这样可以节省存储空间，但是那些字段无法用于搜索
 
+# 13 通过 Analyzer 进行分词
 
+## Analysis 与 Analyzer
 
+- Analysis，文本分析，是把全文本转换成一系列单词 (term / token) 的过程，也叫分词
+- Analyzer 也叫分词器，Analysis 是通过 Analyzer 来实现的，Elasticsearch 可以使用内置的分词器，也可以定制分词器
+- 除了在数据写入时转换词条，匹配 Query 语句是也需要用分析器对查询条件进行分词
 
+## Analyzer 的组成
 
+Analyzer 由三部分组成：
 
+- Character Filters，针对原始文本进行处理，比如去除 html 标签
+- Tokenizer，按照一定的规则切分单词
+- Token Filter，对切分后的单词进行二级加工，比如转小写
 
+## Elasticsearch 内置的分词器
 
+- Standard Analyzer，默认分词器，按词切分，小写处理
+- Simple Analyzer，按照非字母切分 (符号被过滤)，小写处理
+- Stop Analyzer，小写处理，停用词过滤 (the, a, is)
+- Whitespace Analyzer，按照空格切分，不转小写
+- Keyword Analyzer，不分词，直接将输入作为输出
+- Patter Analyzer，正则表达式，默认 \W+ (非字符分隔)
+- Language，提供 20 多种常见语言的分词器
+- Customer Analyzer，自定义分词器
 
+## _analyzer API
 
+用来查看 analyzer 的分词效果，有三种查看方式：
 
+- 直接指定 Analyzer 进行测试
 
+  ```
+  Get /_analyzer
+  {
+  	"analyzer":"standard"
+  	"text":"Mastering Elasticsearch, elasticsearch in Action"
+  }
+  ```
 
+  > "analyzer"，指定分词器的名字
 
+- 指定索引的字段进行测试
+
+  ```
+  POST books/_analyze
+  {
+  	"field":"title",
+  	"text":"Mastering Elasticsearch"
+  }
+  ```
+
+- 自定义分词器
+
+  ```
+  POST /_analyze
+  {
+  	"tokenizer":"standard"
+  	"filter":["lowercase"],
+  	"text":"Mastering Elasticsearch"
+  }
+  ```
+
+## 中文分词
+
+中文分词的难点：
+
+- 中文句子，切分成一个个词而不是一个个字
+- 英文分词中有自然空格作为分隔
+- 一句中文，在不同的上下文，有不同的理解
+
+ICU Analyzer
+
+- 安装 plugin
+
+  Elasticsearch-plugin install analysis-icu
+
+- 提供了 Unicode 的支持，更好的亚洲语言支持
+
+IK
+
+- 支持自定义词库，支持热更新分词字典
+- https://github.com/medcl/elasticsearch-analysis-ik
+
+THULAC
+
+- THU Lexucal Analyzer for Chinese，清华大学自然语言处理与社会人文计算实验室的一套中文分词器
+- https://github.com/microbun/elasticsearch-thulac-plugin
+
+# 14 Search API 概览
+
+Search API 可以分为两大类：
+
+- URI Search，使用 Http GET 的方式，在 URL 中使用查询参数
+
+- Request Body Search，使用 Elasticsearch 提供的，基于 JSON 格式的更加完备的 Query Domain Specific Language (DSL)
+
+语法：
+
+| 语法                   | 范围                |
+| ---------------------- | ------------------- |
+| /_search               | 集群上所有的索引    |
+| /index1/_search        | index1              |
+| /index1,index2/_search | index1 和 index2    |
+| /index*/_search        | 以 index 开头的索引 |
+
+## URI 查询
+
+```shell
+curl -XGET "http://elasticsearch:9200/kibana_sample_data_ecommerce/_search?q=customer_first_name:Eddie"
+```
+
+> q 用来表示查询内容
+
+## Request Body
+
+```shell
+curl -XGET "http://elasticsearch:9200/kibana_sample_data_ecommerce/_search" -H 'Content-Type:application/json' -d
+{
+	"query":{
+		"match_all":{}
+	}
+}
+```
+
+> GET，支持 POST 和 GET 请求
+>
+> kibana_sample_data_ecommerce，索引名
+>
+> _search，执行搜索操作
+>
+> query，查询
+>
+> match_all，返回所有的文档
+
+## 衡量相关性
+
+Information Retrieval
+
+- Pricision (查准率)，尽可能返回较少的无关文档
+- Recall (查全率)，尽量返回较多的相关文档
+- Ranking，是否能按相关度进行排序
+
+# 15 URI Search 详解
+
+```
+GET /movies/_search=2012&df=title&sort=year:desc&from=0&size=10&timeout=1s
+{
+	"profile":true
+}
+```
+
+> q，指定查询条件，使用 Query String Syntax
+>
+> df，默认字段，不指定时，会对所有的字段进行查询
+>
+> sort，排序
+>
+> from 和 size，用于分页
+>
+> Profile，可以查看查询是如何被执行的
+
+**Query String Syntax**
+
+- 指定字段和泛查询
+
+  - 指定字段，q=title:2012 或 q=2012&df=title
+  - 泛查询，q=2012 (不指定查询字段)
+
+- Term 和 Phrase
+
+  - Term Query，Beautiful Mind 等效于 Beautiful OR Mind
+  - Phrase Query，"Beautiful Mind" 等效于 Beautiful AND Mind，Phrase 查询，要求前后顺序保持一致
+
+- 分组和引号
+
+  - 分组，title:(Beautiful Mind)
+
+    > 对两个单词进行 Term Query 时，需要用括号括起来
+
+  - 引号，title="Beautiful Mind"
+
+- 布尔操作
+
+  AND / OR / NOT  或者 && / || / !
+
+  title:(matrix NOT reloaded)
+
+  > NOT 必须大写
+
+- 分组
+
+  - \+ 表示 must
+
+    ```
+    GET /movies/_search?q=title:(Beautiful %2BMind)
+    {
+    	"profile":"true"
+    }
+    ```
+
+    > %2B 代表 + 
+
+  - \- 表示 must_not
+
+    title:(+matrix -reloaded)
+
+- 范围查询
+
+  [] 闭区间, {} 开区间
+
+  year:[2019 TO 2019]
+
+  yaar:{* TO 2018}
+
+- 算数符号
+
+  - year:>2010
+  - year:(>2010 && <=2018)
+  - year:(+>2010 +<=2018)
+
+- 通配符
+
+  ? 代表 1 个字符，* 代表 0 或多个字符
+
+  通配符查询效率低，占用内存大，不建议使用，特别是放在最前面
+
+  title:mi?d
+
+  title:be*
+
+- 正则表达
+
+  title:[bt]oy
+
+- 模糊匹配与近似匹配
+
+  - title:befutifl~1
+  - title:"lord rings"~2
 
 
 
