@@ -514,7 +514,7 @@ GET _cluster/health
   - 使用 **PUT users/_create/1** 创建时，URI 中显示指定 _create，此时如果该 id 的文档已经存在，操作失败
 
     ```
-    PUT my_index/_create1
+    PUT my_index/_create/1
     {"user":"mike","comment":"You know, for search"}
     ```
 
@@ -885,3 +885,25 @@ GET /movies/_search=2012&df=title&sort=year:desc&from=0&size=10&timeout=1s
 
 
 
+# 24 基于此项和基于全文的搜索
+
+## 基于 Term 的查询
+
+Term 的重要性：
+
+- Term 是表达语义的最小单位，搜索和利用统计语言模型进行自然语言处理都需要处理 Term
+
+特点：
+
+- Term Level Query: Term Query / Range Query / Exists Query / Prefix Query / Wildcard Query
+- ES 中， Term 查询，对输入不做分词，会将输入作为一个整体，在倒排索引中查找准确的词项，并且使用相关度算分公式为每个包含该词项的文档进行相关度算分
+- 可以通过 Constant Score 将查询转换成一个 Filtering，避免算分，并利用缓存，提高性能
+
+## 基于全文的查询
+
+基于全文本查：Match Query / Match Phrase Query / Query String Query
+
+特点：
+
+- 索引和搜索时都会进行分词，查询字符串先传递到一个合适的分词器，然后生成一个供查询的词项列表
+- 查询时，先回对输入的查询进行分词，然后每个词逐个进行底层的查询，最终将结果进行合并，并未每个文档生成一个算分

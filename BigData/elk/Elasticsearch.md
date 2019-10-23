@@ -140,3 +140,149 @@ Elasticsearch 的节点可以分为多种类型：
 
 # 操作集群
 
+## Document CRUD API
+
+### Index API
+
+添加一个 id 为 1 的文档到 "twitter" 索引中：
+
+```
+PUT twitter/_doc/1
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+```
+
+index 操作返回的结果为：
+
+```json
+{
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    },
+    "_index" : "twitter",
+    "_type" : "_doc",
+    "_id" : "1",
+    "_version" : 1,
+    "_seq_no" : 0,
+    "_primary_term" : 1,
+    "result" : "created"
+}
+```
+
+> `_shard` 提供了副本分片的处理结果
+
+**自动创建索引**
+
+如果在写入文档前没有创建索引，那么会根据 `index templates` 自动创建索引，如果索引没有指定 `mapping`，那也会自动创建。
+
+通过设置 `action.auto_create_index` 为 false 来禁止自动创建索引，默认为 true。可以设置为通过逗号分隔的列表，允许自动创建符合规则的索引。通过 `+` 或 `-` 前缀来指定允许/禁止自动创建的索引。
+
+```
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "twitter,index10,-index1*,+ind*" 
+    }
+}
+
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "false" 
+    }
+}
+
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "true" 
+    }
+}
+```
+
+**选择操作类型**
+
+可以通过 `op_type` 来指定操作类型为 `create`，这样如果添加文档 id 已经存在，那操作会失败：
+
+```
+PUT twitter/_doc/1?op_type=create
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+```
+
+也可以在 uri 中指定操作类型：
+
+```
+PUT twitter/_create/1
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+```
+
+**自动生成 id**
+
+如果添加文档时没有指定 id, 会自动给文档生成 id，`op_type` 会自动设置为 `create` 操作：
+
+```
+POST twitter/_doc/
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+```
+
+> 这里使用的 **POST** 而不是 **PUT**
+
+index 操作返回的结果：
+
+```json
+{
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    },
+    "_index" : "twitter",
+    "_type" : "_doc",
+    "_id" : "W0tpsmIBdwcYyG50zbta",
+    "_version" : 1,
+    "_seq_no" : 0,
+    "_primary_term" : 1,
+    "result": "created"
+}
+```
+
+**路由**
+
+默认情况下，新增的文档被分配哪个分片是通过对文档的 id 进行 Hash 来决定的。如果要进行精确的控制，可以通过 `routing` 参数指定进行 Hash 的值：
+
+```
+POST twitter/_doc?routing=kimchy
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+```
+
+> 文档会根据 `routing` 参数指定的 "kimchy" 来决定写入哪个分片
+
+可以在 mapping 中通过 `_routing` 字段来指定通过文档中的字段进行 Hash，这个会带来很小的解析文档的开销。如果 `_routing` 字段被指定为 required，那么在写入文档时必须指定 `routing` 参数，否则会写入失败。
+
+**等待可用的分片**
+
+
+
+
+
