@@ -282,6 +282,52 @@ POST twitter/_doc?routing=kimchy
 
 **等待可用的分片**
 
+在写入文档时，可以指定分片数，只有可用的分片数达到指定的数量才会写入文档。如果可用的分片数达不到指定的数量，写操作必须等到或重试，直到启动分片或达到超时时间。默认情况下，只要主分片可用，写操作就可以执行 (`wait_for_active_shards=1`)。这个设置可以通过 `index.write.wait_for_active_shards` 进行动态的修改。如果要在所有的写操作中都启动这个配置，可以修改 `wait_for_active_shards` 参数。
+
+这个参数的值也可以设置为 `all` 来指定写操作时所有的分片都可用 (`number_of_replicas + 1`)。
+
+**超时时间**
+
+执行写入文档操作的主分片可能不可用，默认情况写，写操作会等主分片恢复过来直到 1 分钟，会报写操作失败，可以通过 `timeout` 参数来指定超时时间：
+
+```
+PUT twitter/_doc/1?timeout=5m
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+```
+
+**写入版本号**
+
+每个文档都有一个版本号，默认情况下版本号会从 1 开始，在每次更新时 (包括删除操作) 递增。这个版本号可以手动指定，设置 `version_type` 为 `external`，设置的版本号必须为 Long 型正数字 (0 - 9.2e+18)。
+
+手动设置版本号时，系统会检测设置的版本号是否比当前保存的版本号大，如果比当前版本好大，则文档会被保存并使用新的版本号；如果指定的版本号比当前保存的版本号小，会出现版本冲突，写入操作会失败：
+
+```
+PUT twitter/_doc/1?version=2&version_type=external
+{
+    "message" : "elasticsearch now has versioning support, double cool!"
+}
+```
+
+`version_type` 可选的参数：
+
+- `internal`
+
+  只有指定的版本号与当前保存的版本号相同时，才会写入文档
+
+- `external` / `exterval_gt`
+
+  只有指定的版本号比当前保存的版本号大或第一次写入时才会写入成功
+
+- external_gte
+
+  只有指定的版本号大于等于当前保存的版本号或第一次写入时才会写入成功
+
+
+
 
 
 
