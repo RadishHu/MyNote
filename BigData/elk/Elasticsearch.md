@@ -326,6 +326,407 @@ PUT twitter/_doc/1?version=2&version_type=external
 
   只有指定的版本号大于等于当前保存的版本号或第一次写入时才会写入成功
 
+### Get API
+
+通过 Get API 可以通过 id 从索引库中获取一个 JSON 文档。下面示例从 "twitter" 索引库中获取 id 为 0  的文档：
+
+```
+GET twitter/_doc/0
+```
+
+get 操作的执行结果：
+
+```json
+{
+    "_index" : "twitter",
+    "_type" : "_doc",
+    "_id" : "0",
+    "_version" : 1,
+    "_seq_no" : 10,
+    "_primary_term" : 1,
+    "found": true,
+    "_source" : {
+        "user" : "kimchy",
+        "date" : "2009-11-15T14:12:12",
+        "likes": 0,
+        "message" : "trying out Elasticsearch"
+    }
+}
+```
+
+Get API 也可以用来验测文档是否存在：
+
+```
+HEAD twitter/_doc/0
+```
+
+**实时性**
+
+默认情况下，Get API 是实时的，并且不会受 index 操作刷新频率影响。如果一个文档已经被更新，但是还没有刷新，Get API 会调用一个刷新操作来使文档可访问，这个也会使其它的文档也被刷新。如果要禁用 Get 操作的实时性，可以设置 `realtime` 参数为 `false`。
+
+**过滤 Source**
+
+默认情况下，Get 操作会返回 `_source` 字段的全部内容，除非使用 `stored_fields` 参数或 禁用`_source` 字段。可以通过 `_source` 参数来关闭 `_source`:
+
+```
+GET twitter/_doc/0?_source=false
+```
+
+如果只需要 `_source` 中的一两个字段，可以使用 `_source_includes` 和 `_source_excludes` 参数，这两个参数可以指定一个逗号分隔的列表，也可以使用通配符：
+
+```
+GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
+```
+
+如果只是要指定要包含的字段，可以使用下面这个表达式：
+
+```
+GET twitter/_doc/0?_source=*.id,retweeted
+```
+
+**Stored Fields**
+
+Get 操作可以通过 `stored_field` 指定一个请求返回 stored field 集合，如果请求的字段没有被保存，那这个字段会被忽略掉。示例如下：
+
+创建一个索引库：
+
+```
+PUT twitter
+{
+   "mappings": {
+       "properties": {
+          "counter": {
+             "type": "integer",
+             "store": false
+          },
+          "tags": {
+             "type": "keyword",
+             "store": true
+          }
+       }
+   }
+}
+```
+
+添加一个文档：
+
+```
+PUT twitter/_doc/1
+{
+    "counter" : 1,
+    "tags" : ["red"]
+}
+```
+
+Get 操作返回的结果：
+
+```json
+{
+   "_index": "twitter",
+   "_type": "_doc",
+   "_id": "1",
+   "_version": 1,
+   "_seq_no" : 22,
+   "_primary_term" : 1,
+   "found": true,
+   "fields": {
+      "tags": [
+         "red"
+      ]
+   }
+}
+```
+
+> 从文档中取回的对应字段的值通常以数组返回。因为 `counter` 字段没有被保存 get 请求在获取 `stored_fields` 时忽略了它。
+
+**只获取 _source 内容**
+
+可以通过 `/{index}/_source/{id}` 的形式类是获取文档 `_source` 字段中的内容：
+
+```
+GET twitter/_source/1
+```
+
+也可以使用 source filter 参数来控制返回的字段：
+
+```
+GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities
+```
+
+可以通过 HEAD 请求来判断文档 `_source` 是否存在：
+
+```
+HEAD twitter/_source/1
+```
+
+**Routing**
+
+如果保存文档时使用 routing 来控制文档保存的分片，那么在获取文档时，也应该指定 routing 字段：
+
+```
+GET twitter/_doc/2?routing=user1
+```
+
+**副本分片优先级**
+
+通过 `preperence` 来控制哪个副本分片来执行 get 请求，默认情况下是随机分发的。`preference` 可以设置为一下参数：
+
+- _local，如果可能话，get 请求会在本地分配的分片上执行
+- custom string value，自定义值用于确保将相同的分片用于相同的自定义值
+
+### Delete API
+
+Delete API 可以通过 Id 从索引库中删除一个 JSON 文档。下面示例从 `twitter` 索引库删除 id 为 1 的 JSON 文档：
+
+```
+DELETE /twitter/_doc/1
+```
+
+Delete 操作的执行结果如下：
+
+```json
+{
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    },
+    "_index" : "twitter",
+    "_type" : "_doc",
+    "_id" : "1",
+    "_version" : 2,
+    "_primary_term": 1,
+    "_seq_no": 5,
+    "result": "deleted"
+}
+```
+
+### Delete By Query API
+
+`_delete_by_query` 会删除匹配到的所有文档：
+
+```
+POST twitter/_delete_by_query
+{
+  "query": { 
+    "match": {
+      "message": "some message"
+    }
+  }
+}
+```
+
+这个操作返回的结果为：
+
+```json
+{
+  "took" : 147,
+  "timed_out": false,
+  "deleted": 119,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "total": 119,
+  "failures" : [ ]
+}
+```
+
+> - took，整个操作消耗的时间，单位毫秒
+> - timed_out，在删除过程中执行的任何请求如果超时，那这个值会返回 `true`
+> - total，成功处理的文档个数
+> - deleted，成功删除的文档个数
+> - batches，通过 `delete_by_query` 操作回滚的响应数
+> - version_conflicts，`delete_by_query` 操作中版本冲突的个数
+> - noops，在 `delete_by_query` 操作中，这个字段的值为 0
+> - retries，`delete_by_query` 操作中重试的次数，`bulk` 是 bulk 操作重试的次数，`search` 是 search 操作重试的次数
+> - throttled_mills，为了遵从 `request_per_second` 参数设置的值，请求过程中休眠的时间，单位毫秒
+> - requests_per_second，每秒钟执行的有效请求次数
+> - throttled_until_millis，在`_delete_by_query` 操作中这个字段值始终为 0
+> - failures，在处理过程中所有不可恢复的报错
+
+### Update API
+
+**通过脚本更新文档**
+
+Update API 通过脚本来更新一个文档，这个操作从索引库获取文档，并运行脚本，最后返回处理的结果。这个操作意味着对文档进行重新索引，只是它减少了网络的开销，并减少了跟 get 和 index 操作冲突的可能性。示例如下：
+
+先添加一个文档：
+
+```
+PUT test/_doc/1
+{
+    "counter" : 1,
+    "tags" : ["red"]
+}
+```
+
+通过脚本增加 counter 字段的值：
+
+```
+POST test/_update/1
+{
+    "script" : {
+        "source": "ctx._source.counter += params.count",
+        "lang": "painless",
+        "params" : {
+            "count" : 4
+        }
+    }
+}
+```
+
+给 tags 字段中添加一个值：
+
+```
+POST test/_update/1
+{
+    "script" : {
+        "source": "ctx._source.tags.add(params.tag)",
+        "lang": "painless",
+        "params" : {
+            "tag" : "blue"
+        }
+    }
+}
+```
+
+移除 tags 字段中的值：
+
+```
+POST test/_update/1
+{
+    "script" : {
+        "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
+        "lang": "painless",
+        "params" : {
+            "tag" : "blue"
+        }
+    }
+}
+```
+
+出列 `_source` 外，以下的值也可以在 `ctx` 中指定：`_index`, `_type`, `_id`, `_version`, `_routing` 和 `_now`。
+
+也可以给文档添加新的字段：
+
+```
+POST test/_update/1
+{
+    "script" : "ctx._source.new_field = 'value_of_new_field'"
+}
+```
+
+移除文档中的字段：
+
+```
+POST test/_update/1
+{
+    "script" : "ctx._source.remove('new_field')"
+}
+```
+
+在更新过程中添加条件判断：
+
+```
+POST test/_update/1
+{
+    "script" : {
+        "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+        "lang": "painless",
+        "params" : {
+            "tag" : "green"
+        }
+    }
+}
+```
+
+> 如果 `tags` 字段中包含 green，则删除这个文档，如果不包含就什么操作都不执行
+
+**通过部分文档更新**
+
+Update API 也支持通过传参部分文档来更新文档，这部分文档会合并近已存在的文档中。如果要完全更新一个文档，可以使用 `index` API。下面示例在一个已经存在的文档中添加一个字段：
+
+```
+POST test/_update/1
+{
+    "doc" : {
+        "name" : "new_name"
+    }
+}
+```
+
+> 如果 `doc` 和 `script` 都被指定了，`doc` 会被忽略
+
+### Update By Query API
+
+`_update_by_query` 操作最简单的用法是在不改变 source 的情况下更新所有的文档：
+
+```
+POST twitter/_update_by_query?conflicts=proceed
+```
+
+执行的结果如下：
+
+```json
+{
+  "took" : 147,
+  "timed_out": false,
+  "updated": 120,
+  "deleted": 0,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "total": 120,
+  "failures" : [ ]
+}
+```
+
+也可以通过 `query` 限制 `_update_by_query` 操作的执行范围，一下示例更新 `twitter` 索引库的 `user` 字段为 `kimchy` 的文档：
+
+```
+POST twitter/_update_by_query?conflicts=proceed
+{
+  "query": { 
+    "term": {
+      "user": "kimchy"
+    }
+  }
+}
+```
+
+`_update_by_query` 操作也支持通过脚本更新文档，下面的示例增加 kimchy tweets 的 likes 字段的值：
+
+```
+POST twitter/_update_by_query
+{
+  "script": {
+    "source": "ctx._source.likes++",
+    "lang": "painless"
+  },
+  "query": {
+    "term": {
+      "user": "kimchy"
+    }
+  }
+}
+```
+
+
+
 
 
 

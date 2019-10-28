@@ -1009,3 +1009,17 @@ Spark 属性：
 
 > history 服务不会更新应用程序的状态
 
+# Spark SQL
+
+## 简介
+
+Spark SQL 是 Spark 用来处理结构化数据的模块。
+
+### Datasets 和 DataFrames
+
+Dataset 是一个分布式数据集，是在 Spark 1.6 的时候添加的，它具有 RDD 的有点：强类型并支持 lambda 函数，并且可以通过 Spark SQL 的优化引擎来执行计算。Dataset 支持 Scala 和 Java 语言，但是不支持 Python。
+
+DataFrame 是给 Dataset 中的每列添加名字，它在概念上给表相近。DataFrame 支持 Scala, Java, Python 和 R。在 Scala 中 DataFrame 是 Dataset[Row] 的别名，在 Java 中，需要使用 Dataset<Row\> 代表 DataFrame。
+
+ 
+
