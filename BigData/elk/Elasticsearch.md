@@ -725,7 +725,426 @@ POST twitter/_update_by_query
 }
 ```
 
+### Multi Get API
 
+Multi Get API 会根据 index、type、id 等信息获取多个文档。请求示例：
+
+```
+GET /_mget
+{
+    "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "_doc",
+            "_id" : "1"
+        },
+        {
+            "_index" : "test",
+            "_type" : "_doc",
+            "_id" : "2"
+        }
+    ]
+}
+```
+
+可以在请求 uri 中加入索引，这样就不需要在请求体中指定索引：
+
+```
+GET /test/_mget
+{
+    "docs" : [
+        {
+            "_type" : "_doc",
+            "_id" : "1"
+        },
+        {
+            "_type" : "_doc",
+            "_id" : "2"
+        }
+    ]
+}
+```
+
+type 也可以添加到请求 的 uri 中：
+
+```
+GET /test/_doc/_mget
+{
+    "docs" : [
+        {
+            "_id" : "1"
+        },
+        {
+            "_id" : "2"
+        }
+    ]
+}
+```
+
+在这种情况下可以使用 `ids` ：
+
+```
+GET /test/_doc/_mget
+{
+    "ids" : ["1", "2"]
+}
+```
+
+### Bulk API
+
+通过 bulk API 可以在一次请求中执行多个操作，这些操作可以是 `index`、 `create`、 `delete` 和 `update`。请求示例：
+
+```
+POST _bulk
+{ "index" : { "_index" : "test", "_id" : "1" } }
+{ "field1" : "value1" }
+{ "delete" : { "_index" : "test", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_id" : "3" } }
+{ "field1" : "value3" }
+{ "update" : {"_id" : "1", "_index" : "test"} }
+{ "doc" : {"field2" : "value2"} }
+```
+
+> `index` 和 `create` 操作需要在下一行添加 source
+
+请求执行的结果如下：
+
+```json
+{
+   "took": 30,
+   "errors": false,
+   "items": [
+      {
+         "index": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "1",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 201,
+            "_seq_no" : 0,
+            "_primary_term": 1
+         }
+      },
+      {
+         "delete": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "2",
+            "_version": 1,
+            "result": "not_found",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 404,
+            "_seq_no" : 1,
+            "_primary_term" : 2
+         }
+      },
+      {
+         "create": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "3",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 201,
+            "_seq_no" : 2,
+            "_primary_term" : 3
+         }
+      },
+      {
+         "update": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "1",
+            "_version": 2,
+            "result": "updated",
+            "_shards": {
+                "total": 2,
+                "successful": 1,
+                "failed": 0
+            },
+            "status": 200,
+            "_seq_no" : 3,
+            "_primary_term" : 4
+         }
+      }
+   ]
+}
+```
+
+### Reindex API
+
+Reindex 需要随用库中所有文档都开启 `_source` ，reindex 操作不会自动创建目标索引库，因此需要在执行 reindex 操作前先创建索引库，包括 mapping、分片数、副本分片数等。
+
+Reindex 最基本的操作是从一个索引库复制文档到另一个索引库：
+
+```
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+```
+
+这个请求返回的结果如下：
+
+```json
+{
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "deleted": 0,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "total": 120,
+  "failures" : [ ]
+}
+```
+
+设置 `op_type` 为 `create`，reindex 操作只会创建目标索引库中缺少的文档，如果文档已经存在会造成版本冲突：
+
+```
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+```
+
+可以只把源索引库中的部分数据拷贝到目标索引库：
+
+```
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "query": {
+      "term": {
+        "user": "kimchy"
+      }
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+```
+
+可以通过列表来指定多个源索引库：
+
+```
+POST _reindex
+{
+  "source": {
+    "index": ["twitter", "blog"]
+  },
+  "dest": {
+    "index": "all_together"
+  }
+}
+```
+
+## Cat API
+
+Cat API 的通用参数：
+
+- Verbose
+
+  在请求 URL 后添加 `v` ，给返回数据添加头部信息，显示每列的含义：
+
+  ```
+  GET /_cat/master?v
+  ```
+
+- help
+
+  在请求 URI 后添加 `help`，返回每列含义：
+
+  ```
+  id   |   | node id
+  host | h | host name
+  ip   |   | ip address
+  node | n | node name
+  ```
+
+### cat aliases
+
+`aliases` 命令查询索引库的别名，包括 filter 和 routing 信息：
+
+```
+GET /_cat/aliases?v
+```
+
+命令返回结果：
+
+```
+alias  index filter routing.index routing.search
+alias1 test1 -      -            -
+alias2 test1 *      -            -
+alias3 test1 -      1            1
+alias4 test1 -      2            1,2
+```
+
+如果只想获取指定别名的信息，可以在 URL 中添加逗号分隔的列表：
+
+```
+GET /_cat/aliases/alias1,alias2
+```
+
+### cat allocation
+
+`allocation` 命令查询每个数据节点上的分片数和磁盘空间：
+
+```
+GET /_cat/allocation?v
+```
+
+命令返回结果：
+
+```
+shards disk.indices disk.used disk.avail disk.total disk.percent host      ip      node
+     1       260b    47.3gb     43.4gb    100.7gb         46 127.0.0.1  127.0.0.1 CSUXak2
+```
+
+### cat count
+
+`count` 命令查询这个集群的文档个数：
+
+```
+GET /_cat/count?v
+```
+
+命令返回结果：
+
+```
+epoch      timestamp count
+1475868259 15:24:19  121
+```
+
+也可以获取单个索引库的文档个数：
+
+```
+GET /_cat/count/twitter?v
+```
+
+### cat fielddata
+
+`fielddata` 命令查询每个数据节点中 fielddata 占用的堆内存：
+
+```
+GET /_cat/fielddata?v
+```
+
+命令返回的结果：
+
+```
+id                     host      ip        node    field   size
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
+```
+
+可以在 URL 中通过逗号分隔的列表指定要查看的 fields:
+
+```
+GET /_cat/fielddata?v&fields=body,soul?v
+```
+
+### cat health
+
+`health` 是 `_cluster/health` 命令的简写：
+
+```
+GET /_cat/health?v
+```
+
+命令返回结果如下：
+
+```
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
+```
+
+添加 `ts` 参数来禁止 timestamping 的输出：
+
+```
+GET /_cat/health?v&ts=false
+```
+
+### cat indices
+
+`indices` 命令查询索引库的信息：
+
+```
+GET /_cat/indices/?v
+```
+
+命令返回结果如下：
+
+```
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
+```
+
+`indices` 命令可添加一些参数：
+
+- 查询所有状态为 yellow 的索引库
+
+  ```
+  GET /_cat/indices?v&health=yellow
+  ```
+
+- 根据索引中文档的个数进行排序
+
+  ```
+  GET /_cat/indices?v&s=docs.count:desc
+  ```
+
+- 查询索引库合并操作的次数
+
+  ```
+  GET /_cat/indices/indexName?pri&v&h=health,index,pri,rep,docs.count,mt
+  ```
+
+- 查询每个索引库占用的内存
+
+  ```
+  GET /_cat/indices?v&h=i,tm&s=tm:desc
+  ```
+
+  
 
 
 
